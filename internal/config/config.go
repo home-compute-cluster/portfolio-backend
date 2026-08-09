@@ -25,6 +25,7 @@ type HTTPConfig struct {
 
 type DatabaseConfig struct {
 	URL              string
+	Password         string
 	MaxConns         int32
 	MinConns         int32
 	ConnectTimeout   time.Duration
@@ -97,6 +98,7 @@ func Load() (Config, error) {
 		},
 		Database: DatabaseConfig{
 			URL:              databaseURL,
+			Password:         os.Getenv("DB_PASSWORD"),
 			MaxConns:         maxConns,
 			MinConns:         minConns,
 			ConnectTimeout:   connectTimeout,

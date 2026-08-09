@@ -21,6 +21,9 @@ func Open(
 	poolConfig.MaxConns = cfg.MaxConns
 	poolConfig.MinConns = cfg.MinConns
 	poolConfig.ConnConfig.ConnectTimeout = cfg.ConnectTimeout
+	if cfg.Password != "" {
+		poolConfig.ConnConfig.Password = cfg.Password
+	}
 
 	pool, err := pgxpool.NewWithConfig(ctx, poolConfig)
 	if err != nil {

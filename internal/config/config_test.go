@@ -8,7 +8,8 @@ import (
 
 func TestLoadUsesDefaults(t *testing.T) {
 	clearEnvironment(t)
-	t.Setenv("DATABASE_URL", "postgres://portfolio:password@127.0.0.1:15432/portfolio?sslmode=require")
+	t.Setenv("DATABASE_URL", "postgres://portfolio@127.0.0.1:15432/portfolio?sslmode=require")
+	t.Setenv("DB_PASSWORD", "configured-password")
 
 	cfg, err := Load()
 	if err != nil {
@@ -24,6 +25,9 @@ func TestLoadUsesDefaults(t *testing.T) {
 	if cfg.Database.MaxConns != 5 || cfg.Database.MinConns != 0 {
 		t.Fatalf("pool sizes = (%d, %d), want (5, 0)", cfg.Database.MaxConns, cfg.Database.MinConns)
 	}
+	if cfg.Database.Password != "configured-password" {
+		t.Fatal("database password was not loaded from DB_PASSWORD")
+	}
 }
 
 func TestLoadRejectsMissingDatabaseURL(t *testing.T) {
@@ -37,7 +41,7 @@ func TestLoadRejectsMissingDatabaseURL(t *testing.T) {
 
 func TestLoadRejectsMalformedDuration(t *testing.T) {
 	clearEnvironment(t)
-	t.Setenv("DATABASE_URL", "postgres://portfolio:password@127.0.0.1:15432/portfolio?sslmode=require")
+	t.Setenv("DATABASE_URL", "postgres://portfolio@127.0.0.1:15432/portfolio?sslmode=require")
 	t.Setenv("HTTP_READ_TIMEOUT", "eventually")
 
 	_, err := Load()
@@ -48,7 +52,7 @@ func TestLoadRejectsMalformedDuration(t *testing.T) {
 
 func TestLoadRejectsInvalidPoolBounds(t *testing.T) {
 	clearEnvironment(t)
-	t.Setenv("DATABASE_URL", "postgres://portfolio:password@127.0.0.1:15432/portfolio?sslmode=require")
+	t.Setenv("DATABASE_URL", "postgres://portfolio@127.0.0.1:15432/portfolio?sslmode=require")
 	t.Setenv("DB_MIN_CONNS", "6")
 	t.Setenv("DB_MAX_CONNS", "5")
 
@@ -63,6 +67,7 @@ func clearEnvironment(t *testing.T) {
 
 	for _, name := range []string{
 		"DATABASE_URL",
+		"DB_PASSWORD",
 		"DB_MAX_CONNS",
 		"DB_MIN_CONNS",
 		"HTTP_ADDR",

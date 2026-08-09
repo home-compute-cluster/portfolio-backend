@@ -51,7 +51,13 @@ Local runtime verification:
 - CNPG reported `portfolio-db-dev` healthy with one ready instance
 - `/api/readyz` correctly returned a non-leaking `503` for the placeholder `password`; the real database password was not read or logged
 
-After a valid local `DATABASE_URL` is supplied, the remaining acceptance check is a live `/api/readyz` response of `200` with `{"status":"ready"}`.
+After a valid local `DB_PASSWORD` is loaded (or a complete `DATABASE_URL` is supplied), the remaining acceptance check is a live `/api/readyz` response of `200` with `{"status":"ready"}`.
+
+### Readiness authentication follow-up
+
+The live failure was traced to configuration semantics: `DATABASE_URL` contained the literal placeholder `password`, while a separate `DB_PASSWORD` value was not consumed by the application. The typed database configuration now supports `DB_PASSWORD` as an explicit override, and the example URL is passwordless. Unit tests verify that the override reaches the `pgx` connection configuration without embedding the secret in the URL.
+
+The real password was removed from the tracked example and was not committed. Live `200` verification still requires the developer to load the ignored local `.env` or set `DB_PASSWORD` in the process environment; the agent did not read the credential to bypass that boundary.
 
 ## Next recommended work
 

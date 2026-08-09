@@ -14,9 +14,17 @@ Iterations 0 and 1 provide the walking skeleton: typed configuration, PostgreSQL
 
 ## Local configuration
 
-Copy `.env.example` to `.env`, then adjust non-secret values locally. PowerShell does not automatically load `.env`; either set the variables in the current terminal or use your preferred environment loader.
+Copy `.env.example` to `.env`, then replace the placeholder `DB_PASSWORD` in that ignored file. `DB_PASSWORD` overrides a password embedded in `DATABASE_URL`, which keeps the connection URL safe to show in logs and documentation. A complete production `DATABASE_URL` still works when `DB_PASSWORD` is unset.
 
-The only required variable is `DATABASE_URL`. Local development expects the existing CNPG read-write Service to be available at `127.0.0.1:15432` through a developer-managed port-forward:
+PowerShell does not automatically load `.env`; either set both variables in the current terminal or use your IDE/environment loader. `Read-Host` can set the password without placing it in shell history:
+
+```powershell
+$env:DATABASE_URL = "postgres://portfolio@127.0.0.1:15432/portfolio?sslmode=require"
+$env:DB_PASSWORD = Read-Host "Database password"
+go run ./cmd/api
+```
+
+The only universally required variable is `DATABASE_URL`; `DB_PASSWORD` is an optional explicit password override for local development. Local development expects the existing CNPG read-write Service to be available at `127.0.0.1:15432` through a developer-managed port-forward:
 
 ```powershell
 kubectl -n portfolio-dev port-forward service/portfolio-db-dev-rw 15432:5432
