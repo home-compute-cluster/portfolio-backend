@@ -5,6 +5,7 @@ import (
 	"fmt"
 	"os"
 	"strconv"
+	"strings"
 	"time"
 )
 
@@ -31,9 +32,9 @@ type DatabaseConfig struct {
 }
 
 func Load() (Config, error) {
-	databaseURL := os.Getenv("DATABASE_URL")
+	databaseURL := strings.TrimSpace(os.Getenv("DATABASE_URL"))
 	if databaseURL == "" {
-		return Config{}, errors.New("DATABASE_URL environment variable not set")
+		return Config{}, errors.New("DATABASE_URL environment variable is required")
 	}
 
 	maxConns, err := envInt32("DB_MAX_CONNS", 5)
@@ -50,57 +51,37 @@ func Load() (Config, error) {
 		return Config{}, errors.New("database pool sizes must satisfy 0 <= DB_MIN_CONNS <= DB_MAX_CONNS")
 	}
 
-	readHeaderTimeout, err := envDuration(
-		"DB_READ_HEADER_TIMEOUT",
-		5*time.Second)
+	readHeaderTimeout, err := envDuration("HTTP_READ_HEADER_TIMEOUT", 5*time.Second)
 	if err != nil {
 		return Config{}, err
 	}
 
-	readTimeout, err := envDuration(
-		"HTTP_READ_TIMEOUT",
-		10*time.Second,
-	)
+	readTimeout, err := envDuration("HTTP_READ_TIMEOUT", 10*time.Second)
 	if err != nil {
 		return Config{}, err
 	}
 
-	writeTimeout, err := envDuration(
-		"HTTP_WRITE_TIMEOUT",
-		10*time.Second,
-	)
+	writeTimeout, err := envDuration("HTTP_WRITE_TIMEOUT", 10*time.Second)
 	if err != nil {
 		return Config{}, err
 	}
 
-	idleTimeout, err := envDuration(
-		"HTTP_IDLE_TIMEOUT",
-		60*time.Second,
-	)
+	idleTimeout, err := envDuration("HTTP_IDLE_TIMEOUT", 60*time.Second)
 	if err != nil {
 		return Config{}, err
 	}
 
-	shutdownTimeout, err := envDuration(
-		"HTTP_SHUTDOWN_TIMEOUT",
-		15*time.Second,
-	)
+	shutdownTimeout, err := envDuration("HTTP_SHUTDOWN_TIMEOUT", 15*time.Second)
 	if err != nil {
 		return Config{}, err
 	}
 
-	connectTimeout, err := envDuration(
-		"DB_CONNECT_TIMEOUT",
-		5*time.Second,
-	)
+	connectTimeout, err := envDuration("DB_CONNECT_TIMEOUT", 5*time.Second)
 	if err != nil {
 		return Config{}, err
 	}
 
-	readinessTimeout, err := envDuration(
-		"DB_READINESS_TIMEOUT",
-		750*time.Millisecond,
-	)
+	readinessTimeout, err := envDuration("DB_READINESS_TIMEOUT", 750*time.Millisecond)
 	if err != nil {
 		return Config{}, err
 	}
@@ -125,7 +106,7 @@ func Load() (Config, error) {
 }
 
 func envString(name, fallback string) string {
-	value := os.Getenv(name)
+	value := strings.TrimSpace(os.Getenv(name))
 	if value == "" {
 		return fallback
 	}
@@ -134,32 +115,32 @@ func envString(name, fallback string) string {
 }
 
 func envInt32(name string, fallback int32) (int32, error) {
-	value := os.Getenv(name)
+	value := strings.TrimSpace(os.Getenv(name))
 	if value == "" {
 		return fallback, nil
 	}
 
 	parsed, err := strconv.ParseInt(value, 10, 32)
 	if err != nil {
-		return 0, fmt.Errorf("invalid value for env variable %q: %s", name, err)
+		return 0, fmt.Errorf("%s must be a 32-bit integer: %w", name, err)
 	}
 
 	return int32(parsed), nil
 }
 
 func envDuration(name string, fallback time.Duration) (time.Duration, error) {
-	value := os.Getenv(name)
+	value := strings.TrimSpace(os.Getenv(name))
 	if value == "" {
 		return fallback, nil
 	}
 
 	parsed, err := time.ParseDuration(value)
 	if err != nil {
-		return 0, fmt.Errorf("invalid value for env variable %q: %s", name, err)
+		return 0, fmt.Errorf("%s must be a Go duration: %w", name, err)
 	}
 
-	if parsed < 0 {
-		return 0, fmt.Errorf("%s must be positive", name)
+	if parsed <= 0 {
+		return 0, fmt.Errorf("%s must be greater than zero", name)
 	}
 
 	return parsed, nil

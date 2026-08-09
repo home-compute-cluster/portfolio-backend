@@ -1,0 +1,8 @@
+.git
+.github
+.idea
+.env
+.env.*
+bin
+coverage.*
+*.out

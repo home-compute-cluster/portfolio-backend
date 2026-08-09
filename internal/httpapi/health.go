@@ -3,6 +3,8 @@ package httpapi
 import (
 	"context"
 	"encoding/json"
+	"io"
+	"log/slog"
 	"net/http"
 	"time"
 )
@@ -14,41 +16,35 @@ type DatabasePinger interface {
 type HealthHandler struct {
 	database         DatabasePinger
 	readinessTimeout time.Duration
+	logger           *slog.Logger
 }
 
 func NewHealthHandler(
 	database DatabasePinger,
 	readinessTimeout time.Duration,
+	logger *slog.Logger,
 ) *HealthHandler {
+	if logger == nil {
+		logger = slog.New(slog.NewTextHandler(io.Discard, nil))
+	}
+
 	return &HealthHandler{
 		database:         database,
 		readinessTimeout: readinessTimeout,
+		logger:           logger,
 	}
 }
 
-// Healthz checks only whether the HTTP process is alive.
-//
-// Do not query PostgreSQL here. A database outage should not cause
-// Kubernetes to restart an otherwise healthy API process.
-func (h *HealthHandler) Healthz(
-	w http.ResponseWriter,
-	_ *http.Request,
-) {
+// Healthz reports process liveness and deliberately does not query PostgreSQL.
+func (h *HealthHandler) Healthz(w http.ResponseWriter, _ *http.Request) {
 	writeStatus(w, http.StatusOK, "ok")
 }
 
-// Readyz checks whether the dependencies required to serve traffic
-// are currently available.
-func (h *HealthHandler) Readyz(
-	w http.ResponseWriter,
-	r *http.Request,
-) {
+// Readyz reports whether PostgreSQL is reachable within the configured timeout.
+func (h *HealthHandler) Readyz(w http.ResponseWriter, r *http.Request) {
 	if h.database == nil {
-		writeStatus(
-			w,
-			http.StatusServiceUnavailable,
-			"unavailable",
-		)
+		h.logger.Error("readiness check failed", "error", "database pinger is not configured")
+		writeStatus(w, http.StatusServiceUnavailable, "unavailable")
 		return
 	}
 
@@ -56,19 +52,16 @@ func (h *HealthHandler) Readyz(
 	defer cancel()
 
 	if err := h.database.Ping(ctx); err != nil {
-		writeStatus(
-			w,
-			http.StatusServiceUnavailable,
-			"unavailable",
-		)
+		h.logger.Warn("readiness check failed", "error", err)
+		writeStatus(w, http.StatusServiceUnavailable, "unavailable")
 		return
 	}
 
-	writeStatus(w, http.StatusOK, "ok")
+	writeStatus(w, http.StatusOK, "ready")
 }
 
 func writeStatus(w http.ResponseWriter, statusCode int, status string) {
-	w.Header().Set("Content-Type", "application/json")
+	w.Header().Set("Content-Type", "application/json; charset=utf-8")
 	w.Header().Set("Cache-Control", "no-store")
 	w.WriteHeader(statusCode)
 
@@ -77,5 +70,4 @@ func writeStatus(w http.ResponseWriter, statusCode int, status string) {
 	}{
 		Status: status,
 	})
-
 }

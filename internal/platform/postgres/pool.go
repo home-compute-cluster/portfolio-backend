@@ -14,7 +14,8 @@ func Open(
 ) (*pgxpool.Pool, error) {
 	poolConfig, err := pgxpool.ParseConfig(cfg.URL)
 	if err != nil {
-		return nil, fmt.Errorf("parse DATABASE_URL: %w", err)
+		// Parse errors can echo the connection string, so do not wrap err.
+		return nil, fmt.Errorf("parse DATABASE_URL: invalid PostgreSQL connection configuration")
 	}
 
 	poolConfig.MaxConns = cfg.MaxConns

@@ -1,0 +1,58 @@
+openapi: 3.1.0
+info:
+  title: Packetcraft Backend API
+  version: 0.1.0
+  description: Dynamic API for packetcraft.dev.
+servers:
+  - url: /api
+paths:
+  /healthz:
+    get:
+      operationId: getHealth
+      summary: Check API process liveness
+      responses:
+        "200":
+          description: The API process is alive.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Status"
+              examples:
+                healthy:
+                  value:
+                    status: ok
+  /readyz:
+    get:
+      operationId: getReadiness
+      summary: Check whether the API can serve traffic
+      responses:
+        "200":
+          description: PostgreSQL is reachable.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Status"
+              examples:
+                ready:
+                  value:
+                    status: ready
+        "503":
+          description: PostgreSQL is unavailable.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Status"
+              examples:
+                unavailable:
+                  value:
+                    status: unavailable
+components:
+  schemas:
+    Status:
+      type: object
+      additionalProperties: false
+      required:
+        - status
+      properties:
+        status:
+          type: string
