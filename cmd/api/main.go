@@ -8,12 +8,19 @@ import (
 	"os/signal"
 	"syscall"
 
+	"github.com/joho/godotenv"
+
 	"github.com/home-compute-cluster/portfolio-backend/internal/app"
 	"github.com/home-compute-cluster/portfolio-backend/internal/config"
 )
 
 func main() {
 	logger := slog.New(slog.NewJSONHandler(os.Stdout, nil))
+
+	if err := godotenv.Load(); err != nil && !os.IsNotExist(err) {
+		logger.Error("load .env file", "error", err)
+		os.Exit(1)
+	}
 
 	cfg, err := config.Load()
 	if err != nil {

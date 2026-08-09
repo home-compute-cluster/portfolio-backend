@@ -16,7 +16,7 @@ Iterations 0 and 1 provide the walking skeleton: typed configuration, PostgreSQL
 
 Copy `.env.example` to `.env`, then replace the placeholder `DB_PASSWORD` in that ignored file. `DB_PASSWORD` overrides a password embedded in `DATABASE_URL`, which keeps the connection URL safe to show in logs and documentation. A complete production `DATABASE_URL` still works when `DB_PASSWORD` is unset.
 
-PowerShell does not automatically load `.env`; either set both variables in the current terminal or use your IDE/environment loader. `Read-Host` can set the password without placing it in shell history:
+`cmd/api/main.go` loads `.env` automatically via `godotenv` before reading configuration, so a local `.env` file is picked up without any shell setup. This is a no-op in production, which has no `.env` file and relies on real environment variables from the GitOps-managed Secret instead. Variables already set in the shell still work and take precedence over `.env` if you prefer that route:
 
 ```powershell
 $env:DATABASE_URL = "postgres://portfolio@127.0.0.1:15432/portfolio?sslmode=require"
