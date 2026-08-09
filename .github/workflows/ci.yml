@@ -18,6 +18,22 @@ jobs:
     name: Go checks
     runs-on: ubuntu-latest
     timeout-minutes: 15
+    env:
+      TEST_DATABASE_URL: postgres://portfolio:test-password@127.0.0.1:5432/portfolio_test?sslmode=disable
+    services:
+      postgres:
+        image: postgres:18
+        env:
+          POSTGRES_USER: portfolio
+          POSTGRES_PASSWORD: test-password
+          POSTGRES_DB: portfolio_test
+        ports:
+          - 5432:5432
+        options: >-
+          --health-cmd "pg_isready -U portfolio -d portfolio_test"
+          --health-interval 2s
+          --health-timeout 2s
+          --health-retries 15
     steps:
       - name: Check out repository
         uses: actions/checkout@v4
@@ -40,10 +56,13 @@ jobs:
       - name: Test
         run: make test
 
+      - name: PostgreSQL integration tests
+        run: make test-integration
+
       - name: Test with race detector
         run: make test-race
 
-      - name: Build API
+      - name: Build binaries
         run: make build
 
   container:

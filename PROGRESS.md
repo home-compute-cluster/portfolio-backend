@@ -30,7 +30,7 @@ The container build remains covered by CI because Docker is not installed in the
 
 ## Iteration 1 — Application walking skeleton
 
-Status: implementation complete; live database acceptance is pending a valid local secret
+Status: complete
 
 Added or completed:
 
@@ -44,21 +44,43 @@ Added or completed:
 - `SIGINT`/`SIGTERM` handling with bounded graceful draining before pool closure
 - tests for configuration validation, probe behavior, database error privacy/logging, unknown routes, panic recovery, and in-flight request draining
 
-Local runtime verification:
+Automated verification:
 
-- the API started and `/api/healthz` returned `200` with `{"status":"ok"}`
-- the user-managed port-forward on `127.0.0.1:15432` was reachable
-- CNPG reported `portfolio-db-dev` healthy with one ready instance
-- `/api/readyz` correctly returned a non-leaking `503` for the placeholder `password`; the real database password was not read or logged
-
-After a valid local `DB_PASSWORD` is loaded (or a complete `DATABASE_URL` is supplied), the remaining acceptance check is a live `/api/readyz` response of `200` with `{"status":"ready"}`.
+- HTTP tests cover successful and unavailable readiness responses, liveness independence from PostgreSQL, error privacy, unknown routes, and panic recovery
+- configuration and pool tests cover the separate password override and complete connection URLs
+- CI runs the same behavior checks without requiring manual probe requests
 
 ### Readiness authentication follow-up
 
-The live failure was traced to configuration semantics: `DATABASE_URL` contained the literal placeholder `password`, while a separate `DB_PASSWORD` value was not consumed by the application. The typed database configuration now supports `DB_PASSWORD` as an explicit override, and the example URL is passwordless. Unit tests verify that the override reaches the `pgx` connection configuration without embedding the secret in the URL.
+The readiness failure was traced to configuration semantics: `DATABASE_URL` contained the literal placeholder `password`, while a separate `DB_PASSWORD` value was not consumed by the application. The typed database configuration supports `DB_PASSWORD` as an explicit override, and tests verify that the override reaches pgx without embedding the secret in the URL.
 
-The real password was removed from the tracked example and was not committed. Live `200` verification still requires the developer to load the ignored local `.env` or set `DB_PASSWORD` in the process environment; the agent did not read the credential to bypass that boundary.
+Real passwords remain outside version control.
+
+## Iteration 2 — Migrations and database test foundation
+
+Status: complete
+
+Added or completed:
+
+- consecutive, forward-only `NNNNNN_name.sql` migrations
+- an atomic pgx migration runner with a transaction-scoped PostgreSQL advisory lock
+- a checksummed `schema_migrations` history that detects edited, removed, renamed, duplicate, or missing migrations
+- a separate `cmd/migrate` entrypoint; API pods never migrate on startup
+- an initial `000001_baseline.sql` migration without speculative feature tables
+- an integration-test harness that creates a unique PostgreSQL schema per test and removes it automatically
+- integration coverage for empty-database migration, idempotent reruns, rollback on failure, checksum enforcement, concurrent runners, and non-zero command failure status
+- a CI PostgreSQL 18 service and explicit integration-test step
+- API and migration binaries plus migration SQL in the container image
+- a reference revision-specific Kubernetes migration Job
+
+Automated verification:
+
+- `go test ./...`
+- `go test -race ./...`
+- `go vet ./...`
+- `go build ./cmd/api ./cmd/migrate`
+- PostgreSQL integration tests through `TEST_DATABASE_URL`
 
 ## Next recommended work
 
-Iteration 2: introduce versioned migrations, a single migration command, and PostgreSQL integration-test infrastructure. No feature tables or migration framework have been added early.
+Iteration 3: add the lightweight content identity registry, its migration, synchronization boundary, and automated PostgreSQL/HTTP coverage.

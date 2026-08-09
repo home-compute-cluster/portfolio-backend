@@ -70,6 +70,9 @@ Every iteration must follow these rules.
 12. Stop and document blockers when an external dependency genuinely prevents completion.
 13. Do not silently change architecture established in `AGENTS.md`.
 14. Significant architecture changes require an ADR.
+15. Automate acceptance wherever technically practical; do not make routine browser, curl, or database inspection a required human step.
+
+Examples that describe what a browser or curl client can observe define external behavior. They must be demonstrated by automated HTTP or integration tests unless the behavior cannot reasonably be automated and the exception is documented.
 
 ---
 
@@ -512,7 +515,7 @@ Test:
 
 ## Acceptance criteria
 
-A real browser or curl client can:
+Automated HTTP tests demonstrate that a client can:
 
 ```text
 create comment
@@ -1117,7 +1120,7 @@ backend rollout
 
 ## Tests
 
-At minimum perform a deployment smoke test:
+At minimum run an automated deployment smoke test:
 
 ```text
 health

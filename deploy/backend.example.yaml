@@ -90,6 +90,57 @@ spec:
             readOnlyRootFilesystem: true
 
 ---
+apiVersion: batch/v1
+kind: Job
+metadata:
+  # GitOps should make this Job revision-specific so it runs once per deploy.
+  name: portfolio-backend-migrate-example
+  namespace: portfolio-dev
+spec:
+  backoffLimit: 3
+  template:
+    metadata:
+      labels:
+        app.kubernetes.io/name: portfolio-backend-migrate
+    spec:
+      automountServiceAccountToken: false
+      restartPolicy: OnFailure
+      securityContext:
+        runAsNonRoot: true
+        seccompProfile:
+          type: RuntimeDefault
+      containers:
+        - name: migrate
+          image: ghcr.io/home-compute-cluster/portfolio-backend:git-sha
+          command:
+            - /migrate
+          args:
+            - -dir
+            - /migrations
+          envFrom:
+            - configMapRef:
+                name: portfolio-backend
+          env:
+            - name: DATABASE_URL
+              valueFrom:
+                secretKeyRef:
+                  name: portfolio-backend
+                  key: DATABASE_URL
+          resources:
+            requests:
+              cpu: 25m
+              memory: 32Mi
+            limits:
+              cpu: 250m
+              memory: 128Mi
+          securityContext:
+            allowPrivilegeEscalation: false
+            capabilities:
+              drop:
+                - ALL
+            readOnlyRootFilesystem: true
+
+---
 apiVersion: v1
 kind: Service
 metadata:

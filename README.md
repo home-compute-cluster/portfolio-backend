@@ -2,7 +2,7 @@
 
 `portfolio-backend` is the Go API for [packetcraft.dev](https://packetcraft.dev). It is a small modular monolith that will provide post reactions, visitor comments, administrator authentication, and project content for the static Astro frontend.
 
-Iterations 0 and 1 provide the walking skeleton: typed configuration, PostgreSQL pooling, structured logging, liveness/readiness probes, graceful HTTP shutdown, CI, and a production-oriented container image.
+Iterations 0 through 2 provide the walking skeleton and database foundation: typed configuration, PostgreSQL pooling, structured logging, liveness/readiness probes, graceful HTTP shutdown, versioned migrations, real-PostgreSQL integration tests, CI, and a production-oriented container image.
 
 ## Prerequisites
 
@@ -32,7 +32,7 @@ kubectl -n portfolio-dev port-forward service/portfolio-db-dev-rw 15432:5432
 
 Production pods do not use a port-forward. Their `DATABASE_URL` points directly at the CNPG `-rw` Service DNS name and is supplied by the GitOps-managed Secret.
 
-## Run the API
+## Local development
 
 With `DATABASE_URL` set in the current shell:
 
@@ -40,26 +40,27 @@ With `DATABASE_URL` set in the current shell:
 go run ./cmd/api
 ```
 
-The API listens on `:8080` by default:
+The API listens on `:8080` by default. Automated HTTP tests verify `/api/healthz`, `/api/readyz`, unknown routes, middleware recovery, and database-error privacy; manual endpoint probing is not part of routine acceptance.
 
-```powershell
-Invoke-RestMethod http://127.0.0.1:8080/api/healthz
-Invoke-RestMethod http://127.0.0.1:8080/api/readyz
-```
+## Automated verification
 
-`/api/healthz` checks only that the process is alive. `/api/readyz` pings PostgreSQL and returns `503` while it is unavailable.
+Every push and pull request runs formatting, module-tidiness, vet, unit/HTTP tests, real-PostgreSQL integration tests, the race detector, both Go binary builds, and a container build. Developers are not expected to reproduce routine API behavior manually.
 
-## Verify changes
+The same automated checks can be invoked locally when needed:
 
 ```powershell
 go fmt ./...
 go vet ./...
 go test ./...
 go test -race ./...
-go build ./cmd/api
+go build ./cmd/api ./cmd/migrate
 ```
 
-On a system with Make, `make ci` runs the same core checks. Build the container with `docker build -t portfolio-backend:dev .`.
+On a system with Make, `make ci` runs checks that do not require a local PostgreSQL instance. `make test-integration` uses `TEST_DATABASE_URL`; CI always supplies its own PostgreSQL service automatically.
+
+## Database migrations
+
+Versioned SQL lives in `migrations/`. The API never migrates on startup. The same container image includes `/migrate` and `/migrations` so GitOps can run one revision-specific migration Job before rolling out API pods. See [`migrations/README.md`](migrations/README.md) for the file convention and guarantees.
 
 ## Deployment model
 

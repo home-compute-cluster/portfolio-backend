@@ -601,6 +601,8 @@ Prefer expand-and-contract schema changes for compatibility with rollout and rol
 
 Testing is part of feature completion.
 
+Acceptance must be automated wherever technically practical. Do not require the developer to manually call endpoints, use a browser, or inspect database state for routine verification. Manual testing is reserved for behavior that cannot reasonably be automated, and the reason must be documented.
+
 ### Unit tests
 
 Use for validation, service behavior, error mapping, client-IP parsing, visitor HMAC behavior, session expiry, pagination parsing, and state transitions.
@@ -646,6 +648,7 @@ go test -race ./...
 govulncheck ./...
 integration tests
 go build ./cmd/api
+go build ./cmd/migrate
 docker build
 ```
 
