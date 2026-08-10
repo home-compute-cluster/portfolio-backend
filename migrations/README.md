@@ -2,6 +2,12 @@
 
 The application owns versioned, forward-only PostgreSQL migrations in this directory.
 
+Content identities are synchronized by adding a forward-only migration whenever
+the Astro site publishes, archives, or renames a post. Article bodies remain in
+the frontend repository; this registry only authorizes backend-owned dynamic
+state. Editing an already-applied seed migration is intentionally rejected by
+the migration checksum guard.
+
 ## Convention
 
 Files must be consecutive and use six-digit versions:
