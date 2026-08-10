@@ -66,6 +66,15 @@ func Run(ctx context.Context, cfg config.Config, logger *slog.Logger) error {
 		cfg.Database.QueryTimeout,
 		logger,
 	)
+	reactionStore := reactionspostgres.NewStore(pool)
+	reactionHandler := httpapi.NewReactionHandler(
+		reactions.NewLikeService(reactionStore, contentService),
+		reactions.NewStatsService(reactionStore, contentService),
+		visitorIdentity,
+		nil, // Rate-limiting assignment: wire the like allowance after implementation.
+		cfg.Database.QueryTimeout,
+		logger,
+	)
 	clientIP := httpmiddleware.NewClientIPResolver(cfg.Security.TrustedProxyCIDRs)
 
 	server := &http.Server{
@@ -75,9 +84,10 @@ func Run(ctx context.Context, cfg config.Config, logger *slog.Logger) error {
 			cfg.Database.ReadinessTimeout,
 			logger,
 			httpapi.FeatureHandlers{
-				ClientIP: clientIP,
-				Comments: commentHandler,
-				Views:    viewHandler,
+				ClientIP:  clientIP,
+				Comments:  commentHandler,
+				Views:     viewHandler,
+				Reactions: reactionHandler,
 			},
 		),
 		ReadHeaderTimeout: cfg.HTTP.ReadHeaderTimeout,
