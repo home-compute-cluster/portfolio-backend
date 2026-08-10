@@ -2,7 +2,7 @@
 
 `portfolio-backend` is the Go API for [packetcraft.dev](https://packetcraft.dev). It is a small modular monolith that will provide post reactions, visitor comments, administrator authentication, and project content for the static Astro frontend.
 
-Iterations 0 through 2 provide the walking skeleton and database foundation: typed configuration, PostgreSQL pooling, structured logging, liveness/readiness probes, graceful HTTP shutdown, versioned migrations, real-PostgreSQL integration tests, CI, and a production-oriented container image.
+The implemented walking skeleton and feature slices provide typed configuration, PostgreSQL pooling, structured logging, liveness/readiness probes, graceful HTTP shutdown, versioned migrations, a content registry, public comments, visitor privacy controls, real-PostgreSQL integration tests, CI, and a production-oriented container image.
 
 ## Prerequisites
 
@@ -14,7 +14,7 @@ Iterations 0 through 2 provide the walking skeleton and database foundation: typ
 
 ## Local configuration
 
-Copy `.env.example` to `.env`, then replace the placeholder `DB_PASSWORD` in that ignored file. `DB_PASSWORD` overrides a password embedded in `DATABASE_URL`, which keeps the connection URL safe to show in logs and documentation. A complete production `DATABASE_URL` still works when `DB_PASSWORD` is unset.
+Copy `.env.example` to `.env`, then replace the `DB_PASSWORD` and `VISITOR_HMAC_KEY` placeholders in that ignored file. The HMAC key must contain at least 32 random bytes and must remain stable across replicas and restarts; changing it changes every pseudonymous visitor identity. `DB_PASSWORD` overrides a password embedded in `DATABASE_URL`, which keeps the connection URL safe to show in logs and documentation. A complete production `DATABASE_URL` still works when `DB_PASSWORD` is unset.
 
 `cmd/api/main.go` loads `.env` automatically via `godotenv` before reading configuration, so a local `.env` file is picked up without any shell setup. This is a no-op in production, which has no `.env` file and relies on real environment variables from the GitOps-managed Secret instead. Variables already set in the shell still work and take precedence over `.env` if you prefer that route:
 
@@ -24,7 +24,7 @@ $env:DB_PASSWORD = Read-Host "Database password"
 go run ./cmd/api
 ```
 
-The only universally required variable is `DATABASE_URL`; `DB_PASSWORD` is an optional explicit password override for local development. Local development expects the existing CNPG read-write Service to be available at `127.0.0.1:15432` through a developer-managed port-forward:
+The migration command requires `DATABASE_URL`; the API additionally requires `VISITOR_HMAC_KEY`. `DB_PASSWORD` is an optional explicit password override for local development. Local development expects the existing CNPG read-write Service to be available at `127.0.0.1:15432` through a developer-managed port-forward:
 
 ```powershell
 kubectl -n portfolio-dev port-forward service/portfolio-db-dev-rw 15432:5432
@@ -41,6 +41,18 @@ go run ./cmd/api
 ```
 
 The API listens on `:8080` by default. Automated HTTP tests verify `/api/healthz`, `/api/readyz`, unknown routes, middleware recovery, and database-error privacy; manual endpoint probing is not part of routine acceptance.
+
+The currently usable dynamic routes are:
+
+```text
+GET  /api/posts/{slug}/comments
+POST /api/posts/{slug}/comments
+POST /api/posts/{slug}/view
+```
+
+Only slugs in the published content registry are accepted. Comments are plain text, newest-first, and cursor-paginated. Views use a rolling deduplication window. Comment moderation is implemented and tested but deliberately has no production route until admin authentication can protect the entire `/api/admin/*` group.
+
+The in-memory rate-limiting algorithm is the remaining Iteration 5 assignment. Its handler boundary and opt-in acceptance suite are present, but the permissive template is not wired into the API. Run `make test-rate-limit-assignment` while implementing it; do not treat anonymous-write deployment as fully hardened until that target passes and the limiter is constructed in `internal/app`.
 
 ## Automated verification
 
@@ -67,3 +79,5 @@ Versioned SQL lives in `migrations/`. The API never migrates on startup. The sam
 CI validates the Go code and container build. The homelab GitOps repository remains the source of truth for the Kubernetes Deployment, Service, ConfigMap, Secret, IngressRoute, and CNPG resources. [`deploy/backend.example.yaml`](deploy/backend.example.yaml) is a reference showing the expected container security settings and probe wiring; it is not a second GitOps source of truth.
 
 Traefik routes `packetcraft.dev/api/*` to this backend and all other paths to the frontend. Database outages fail readiness but never liveness, so Kubernetes removes an affected pod from service without restarting it in a loop.
+
+`TRUSTED_PROXY_CIDRS` must contain only the actual Traefik and intermediate proxy network ranges. With it unset, forwarded headers are ignored and the direct peer is used. The application never trusts `X-Forwarded-For` from an arbitrary client, and Traefik must independently be configured with its own `forwardedHeaders.trustedIPs` boundary.

@@ -9,9 +9,18 @@ import (
 	"net/http"
 	"time"
 
+	"github.com/home-compute-cluster/portfolio-backend/internal/comments"
+	commentspostgres "github.com/home-compute-cluster/portfolio-backend/internal/comments/postgres"
 	"github.com/home-compute-cluster/portfolio-backend/internal/config"
+	"github.com/home-compute-cluster/portfolio-backend/internal/content"
+	contentpostgres "github.com/home-compute-cluster/portfolio-backend/internal/content/postgres"
 	"github.com/home-compute-cluster/portfolio-backend/internal/httpapi"
+	httpmiddleware "github.com/home-compute-cluster/portfolio-backend/internal/httpapi/middleware"
+	"github.com/home-compute-cluster/portfolio-backend/internal/platform/clock"
 	"github.com/home-compute-cluster/portfolio-backend/internal/platform/postgres"
+	"github.com/home-compute-cluster/portfolio-backend/internal/platform/visitor"
+	"github.com/home-compute-cluster/portfolio-backend/internal/reactions"
+	reactionspostgres "github.com/home-compute-cluster/portfolio-backend/internal/reactions/postgres"
 )
 
 // Run constructs and serves the API until ctx is cancelled or the server fails.
@@ -24,12 +33,52 @@ func Run(ctx context.Context, cfg config.Config, logger *slog.Logger) error {
 	}
 	defer pool.Close()
 
+	contentService := content.NewService(contentpostgres.NewStore(pool))
+	commentService := comments.NewService(
+		commentspostgres.NewStore(pool),
+		contentService,
+		comments.Limits{
+			MaxAuthorChars:     cfg.Comments.MaxAuthorChars,
+			MaxCommentChars:    cfg.Comments.MaxCommentChars,
+			MaxCommentsPerPost: cfg.Comments.MaxCommentsPerPost,
+			DefaultPageSize:    cfg.Comments.DefaultPageSize,
+			MaximumPageSize:    cfg.Comments.MaximumPageSize,
+		},
+	)
+	visitorIdentity := visitor.NewIdentity(cfg.Security.VisitorHMACKey)
+	commentHandler := httpapi.NewCommentHandler(
+		commentService,
+		visitorIdentity,
+		nil, // Rate-limiting assignment: wire only after its tagged acceptance suite passes.
+		cfg.Database.QueryTimeout,
+		logger,
+	)
+	viewService := reactions.NewViewService(
+		reactionspostgres.NewViewStore(pool),
+		contentService,
+		clock.Real{},
+		cfg.Views.DeduplicationWindow,
+	)
+	viewHandler := httpapi.NewViewHandler(
+		viewService,
+		visitorIdentity,
+		nil, // Rate-limiting assignment: use a separate view allowance when implemented.
+		cfg.Database.QueryTimeout,
+		logger,
+	)
+	clientIP := httpmiddleware.NewClientIPResolver(cfg.Security.TrustedProxyCIDRs)
+
 	server := &http.Server{
 		Addr: cfg.HTTP.Address,
-		Handler: httpapi.NewRouter(
+		Handler: httpapi.NewApplicationRouter(
 			pool,
 			cfg.Database.ReadinessTimeout,
 			logger,
+			httpapi.FeatureHandlers{
+				ClientIP: clientIP,
+				Comments: commentHandler,
+				Views:    viewHandler,
+			},
 		),
 		ReadHeaderTimeout: cfg.HTTP.ReadHeaderTimeout,
 		ReadTimeout:       cfg.HTTP.ReadTimeout,

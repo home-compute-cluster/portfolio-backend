@@ -1,6 +1,6 @@
 # Project progress
 
-Last updated: 2026-08-09
+Last updated: 2026-08-10
 
 ## Iteration 0 — Repository baseline
 
@@ -81,6 +81,90 @@ Automated verification:
 - `go build ./cmd/api ./cmd/migrate`
 - PostgreSQL integration tests through `TEST_DATABASE_URL`
 
+## Iteration 3 — Content identity registry
+
+Status: complete
+
+Added or completed:
+
+- added `content_items` as the backend authority for slug, kind, and publication state while leaving article bodies in Astro
+- seeded the four currently published blog identities from the frontend repository
+- constrained slug syntax/length, content kind, and publication state in both Go and PostgreSQL
+- added a feature service and explicit pgx store for published-post checks
+- documented forward-only migration updates as the synchronization boundary
+- added unit and real-PostgreSQL tests for malformed, unknown, draft, archived, wrong-kind, and published identities
+
+## Iteration 4 — Public comments
+
+Status: complete
+
+Added or completed:
+
+- added plain-text comment persistence with rune-aware author/body validation and matching PostgreSQL constraints
+- added `GET` and `POST /api/posts/{slug}/comments`
+- added newest-first `before_id` cursor pagination with default and maximum page bounds
+- added strict content-type/JSON decoding, unknown-field rejection, trailing-value rejection, and a 16 KiB request cap
+- used a per-post transaction advisory lock so the visible-count check and insert remain atomic under concurrency
+- kept visitor hashes and moderation state out of public responses
+- updated typed configuration, `.env.example`, OpenAPI, deployment references, and application wiring
+
+## Iteration 5 — Anonymous-write abuse controls
+
+Status: assignment pending
+
+Added or completed:
+
+- added HMAC-SHA-256 visitor identity derived from normalized client IP and user agent without persisting either raw value
+- added centralized trusted-proxy parsing that ignores forwarded headers from untrusted peers and safely handles malformed chains
+- added a silent honeypot, request-size limits, strict validation, and an atomic per-post visible-comment cap
+- added fuzz coverage for forwarded-header parsing and concurrent PostgreSQL coverage for the post cap
+- added a rate-limiter interface at the HTTP boundary, a compile-ready assignment template, bounded-state requirements, and an opt-in race/concurrency acceptance suite
+
+Remaining assignment:
+
+- implement `internal/platform/ratelimit/AssignmentLimiter`
+- make `make test-rate-limit-assignment` pass
+- add typed comment/view allowance configuration and construct separate limiter instances in `internal/app`
+
+The placeholder limiter is permissive and is intentionally not wired into the application. Iteration 5 must not be reported as complete until the assignment is implemented.
+
+## Iteration 6 — Comment moderation
+
+Status: complete but dormant
+
+Added or completed:
+
+- added bounded moderation listing with visible/hidden filters
+- added idempotent explicit hide and unhide operations
+- serialized visibility changes with comment creation so unhiding cannot exceed the visible-comment cap
+- implemented service, PostgreSQL, and HTTP handler layers with unit, HTTP, and real-PostgreSQL tests
+- deliberately left all moderation handlers out of the production router; an automated test verifies `/api/admin/comments` remains unavailable
+
+Moderation will be registered only after admin session authentication can protect the entire route group.
+
+## Iteration 7 — Post views
+
+Status: complete
+
+Added or completed:
+
+- added `POST /api/posts/{slug}/view` with `204 No Content` for both newly counted and deduplicated views
+- implemented a true rolling configurable window rather than calendar-day deduplication
+- used a unique `(post_slug, visitor_hash)` row and one atomic PostgreSQL CTE to decide and increment cached totals
+- kept writes synchronous and request-scoped with no untracked handler goroutines
+- added deterministic clock injection plus HTTP, rolling-boundary, separate-visitor, and concurrent identical-visitor tests
+
+## Automated verification for Iterations 3–7
+
+Completed against an isolated PostgreSQL 18 instance:
+
+- `go test -count=1 ./...`
+- `go test -race -count=1 ./...`
+- `go vet ./...`
+- `go build ./cmd/api ./cmd/migrate`
+
+The temporary PostgreSQL pod and its port-forward were removed after the run. Docker remains unavailable locally, so the unchanged container build continues to be verified by CI.
+
 ## Next recommended work
 
-Iteration 3: add the lightweight content identity registry, its migration, synchronization boundary, and automated PostgreSQL/HTTP coverage.
+Complete the rate-limiting assignment, wire separate comment and view allowances, then proceed to Iteration 8 for the public aggregate stats endpoint.

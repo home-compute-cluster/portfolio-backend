@@ -22,7 +22,7 @@ func main() {
 		os.Exit(1)
 	}
 
-	cfg, err := config.Load()
+	cfg, err := config.LoadAPI()
 	if err != nil {
 		logger.Error("load configuration", "error", err)
 		os.Exit(1)
