@@ -54,6 +54,12 @@ type ViewsConfig struct {
 	DeduplicationWindow time.Duration
 }
 
+const (
+	databaseAuthorLimitChars  = 80
+	databaseCommentLimitChars = 2000
+	maximumViewWindowHours    = 24 * 365
+)
+
 func LoadAPI() (Config, error) {
 	cfg, err := Load()
 	if err != nil {
@@ -128,15 +134,20 @@ func Load() (Config, error) {
 	if err != nil {
 		return Config{}, err
 	}
+	if maxAuthorChars > databaseAuthorLimitChars {
+		return Config{}, fmt.Errorf("MAX_AUTHOR_CHARS must not exceed the database limit of %d", databaseAuthorLimitChars)
+	}
 	maxCommentChars, err := envPositiveInt("MAX_COMMENT_CHARS", 2000)
 	if err != nil {
 		return Config{}, err
+	}
+	if maxCommentChars > databaseCommentLimitChars {
+		return Config{}, fmt.Errorf("MAX_COMMENT_CHARS must not exceed the database limit of %d", databaseCommentLimitChars)
 	}
 	maxCommentsPerPost, err := envPositiveInt("MAX_COMMENTS_PER_POST", 1000)
 	if err != nil {
 		return Config{}, err
 	}
-
 	trustedProxyCIDRs, err := envPrefixes("TRUSTED_PROXY_CIDRS")
 	if err != nil {
 		return Config{}, err
@@ -144,6 +155,9 @@ func Load() (Config, error) {
 	viewWindowHours, err := envPositiveInt("VIEW_DEDUP_WINDOW_HOURS", 24)
 	if err != nil {
 		return Config{}, err
+	}
+	if viewWindowHours > maximumViewWindowHours {
+		return Config{}, fmt.Errorf("VIEW_DEDUP_WINDOW_HOURS must not exceed %d", maximumViewWindowHours)
 	}
 
 	return Config{

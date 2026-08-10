@@ -69,6 +69,26 @@ func TestLoadParsesTrustedProxyCIDRs(t *testing.T) {
 	}
 }
 
+func TestLoadRejectsLimitsAboveDatabaseConstraints(t *testing.T) {
+	clearEnvironment(t)
+	t.Setenv("DATABASE_URL", "postgres://portfolio@127.0.0.1:15432/portfolio?sslmode=require")
+
+	t.Setenv("MAX_AUTHOR_CHARS", "81")
+	if _, err := Load(); err == nil || !strings.Contains(err.Error(), "MAX_AUTHOR_CHARS") {
+		t.Fatalf("author limit error = %v", err)
+	}
+	t.Setenv("MAX_AUTHOR_CHARS", "80")
+	t.Setenv("MAX_COMMENT_CHARS", "2001")
+	if _, err := Load(); err == nil || !strings.Contains(err.Error(), "MAX_COMMENT_CHARS") {
+		t.Fatalf("comment limit error = %v", err)
+	}
+	t.Setenv("MAX_COMMENT_CHARS", "2000")
+	t.Setenv("VIEW_DEDUP_WINDOW_HOURS", "8761")
+	if _, err := Load(); err == nil || !strings.Contains(err.Error(), "VIEW_DEDUP_WINDOW_HOURS") {
+		t.Fatalf("view window error = %v", err)
+	}
+}
+
 func TestLoadRejectsMissingDatabaseURL(t *testing.T) {
 	clearEnvironment(t)
 
