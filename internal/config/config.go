@@ -3,6 +3,7 @@ package config
 import (
 	"errors"
 	"fmt"
+	"net/netip"
 	"os"
 	"strconv"
 	"strings"
@@ -12,6 +13,9 @@ import (
 type Config struct {
 	HTTP     HTTPConfig
 	Database DatabaseConfig
+	Comments CommentsConfig
+	Security SecurityConfig
+	Views    ViewsConfig
 }
 
 type HTTPConfig struct {
@@ -30,6 +34,35 @@ type DatabaseConfig struct {
 	MinConns         int32
 	ConnectTimeout   time.Duration
 	ReadinessTimeout time.Duration
+	QueryTimeout     time.Duration
+}
+
+type CommentsConfig struct {
+	MaxAuthorChars     int
+	MaxCommentChars    int
+	MaxCommentsPerPost int
+	DefaultPageSize    int
+	MaximumPageSize    int
+}
+
+type SecurityConfig struct {
+	VisitorHMACKey    []byte
+	TrustedProxyCIDRs []netip.Prefix
+}
+
+type ViewsConfig struct {
+	DeduplicationWindow time.Duration
+}
+
+func LoadAPI() (Config, error) {
+	cfg, err := Load()
+	if err != nil {
+		return Config{}, err
+	}
+	if len(cfg.Security.VisitorHMACKey) < 32 {
+		return Config{}, errors.New("VISITOR_HMAC_KEY must contain at least 32 bytes")
+	}
+	return cfg, nil
 }
 
 func Load() (Config, error) {
@@ -86,6 +119,32 @@ func Load() (Config, error) {
 	if err != nil {
 		return Config{}, err
 	}
+	queryTimeout, err := envDuration("DB_QUERY_TIMEOUT", 3*time.Second)
+	if err != nil {
+		return Config{}, err
+	}
+
+	maxAuthorChars, err := envPositiveInt("MAX_AUTHOR_CHARS", 80)
+	if err != nil {
+		return Config{}, err
+	}
+	maxCommentChars, err := envPositiveInt("MAX_COMMENT_CHARS", 2000)
+	if err != nil {
+		return Config{}, err
+	}
+	maxCommentsPerPost, err := envPositiveInt("MAX_COMMENTS_PER_POST", 1000)
+	if err != nil {
+		return Config{}, err
+	}
+
+	trustedProxyCIDRs, err := envPrefixes("TRUSTED_PROXY_CIDRS")
+	if err != nil {
+		return Config{}, err
+	}
+	viewWindowHours, err := envPositiveInt("VIEW_DEDUP_WINDOW_HOURS", 24)
+	if err != nil {
+		return Config{}, err
+	}
 
 	return Config{
 		HTTP: HTTPConfig{
@@ -103,6 +162,21 @@ func Load() (Config, error) {
 			MinConns:         minConns,
 			ConnectTimeout:   connectTimeout,
 			ReadinessTimeout: readinessTimeout,
+			QueryTimeout:     queryTimeout,
+		},
+		Comments: CommentsConfig{
+			MaxAuthorChars:     maxAuthorChars,
+			MaxCommentChars:    maxCommentChars,
+			MaxCommentsPerPost: maxCommentsPerPost,
+			DefaultPageSize:    25,
+			MaximumPageSize:    100,
+		},
+		Security: SecurityConfig{
+			VisitorHMACKey:    []byte(os.Getenv("VISITOR_HMAC_KEY")),
+			TrustedProxyCIDRs: trustedProxyCIDRs,
+		},
+		Views: ViewsConfig{
+			DeduplicationWindow: time.Duration(viewWindowHours) * time.Hour,
 		},
 	}, nil
 }
@@ -128,6 +202,37 @@ func envInt32(name string, fallback int32) (int32, error) {
 	}
 
 	return int32(parsed), nil
+}
+
+func envPositiveInt(name string, fallback int) (int, error) {
+	value := strings.TrimSpace(os.Getenv(name))
+	if value == "" {
+		return fallback, nil
+	}
+
+	parsed, err := strconv.Atoi(value)
+	if err != nil || parsed <= 0 {
+		return 0, fmt.Errorf("%s must be a positive integer", name)
+	}
+	return parsed, nil
+}
+
+func envPrefixes(name string) ([]netip.Prefix, error) {
+	value := strings.TrimSpace(os.Getenv(name))
+	if value == "" {
+		return nil, nil
+	}
+
+	parts := strings.Split(value, ",")
+	result := make([]netip.Prefix, 0, len(parts))
+	for _, part := range parts {
+		prefix, err := netip.ParsePrefix(strings.TrimSpace(part))
+		if err != nil {
+			return nil, fmt.Errorf("%s contains an invalid CIDR", name)
+		}
+		result = append(result, prefix.Masked())
+	}
+	return result, nil
 }
 
 func envDuration(name string, fallback time.Duration) (time.Duration, error) {

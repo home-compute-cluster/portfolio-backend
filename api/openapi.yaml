@@ -46,7 +46,96 @@ paths:
                 unavailable:
                   value:
                     status: unavailable
+  /posts/{slug}/comments:
+    parameters:
+      - $ref: "#/components/parameters/PostSlug"
+    get:
+      operationId: listPostComments
+      summary: List visible comments newest first
+      parameters:
+        - name: before_id
+          in: query
+          required: false
+          schema:
+            type: integer
+            format: int64
+            minimum: 1
+        - name: limit
+          in: query
+          required: false
+          schema:
+            type: integer
+            minimum: 1
+            maximum: 100
+            default: 25
+      responses:
+        "200":
+          description: A bounded page of visible comments.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/CommentPage"
+        "400":
+          $ref: "#/components/responses/BadRequest"
+        "404":
+          $ref: "#/components/responses/NotFound"
+    post:
+      operationId: createPostComment
+      summary: Publish a plain-text visitor comment
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/CreateComment"
+      responses:
+        "201":
+          description: The comment was published.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Comment"
+        "204":
+          description: The honeypot submission was accepted without persistence.
+        "400":
+          $ref: "#/components/responses/BadRequest"
+        "404":
+          $ref: "#/components/responses/NotFound"
+        "409":
+          description: The post has reached its visible-comment limit.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Error"
+        "413":
+          description: The request body exceeds 16 KiB.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Error"
 components:
+  parameters:
+    PostSlug:
+      name: slug
+      in: path
+      required: true
+      schema:
+        type: string
+        maxLength: 100
+        pattern: "^[a-z0-9]+(-[a-z0-9]+)*$"
+  responses:
+    BadRequest:
+      description: The request is malformed or invalid.
+      content:
+        application/json:
+          schema:
+            $ref: "#/components/schemas/Error"
+    NotFound:
+      description: The published post is not registered.
+      content:
+        application/json:
+          schema:
+            $ref: "#/components/schemas/Error"
   schemas:
     Status:
       type: object
@@ -56,3 +145,63 @@ components:
       properties:
         status:
           type: string
+    Error:
+      type: object
+      additionalProperties: false
+      required:
+        - error
+      properties:
+        error:
+          type: string
+    CreateComment:
+      type: object
+      additionalProperties: false
+      required:
+        - author_name
+        - body
+      properties:
+        author_name:
+          type: string
+          maxLength: 80
+        body:
+          type: string
+          maxLength: 2000
+        website:
+          type: string
+          description: Honeypot field; legitimate clients leave it empty.
+    Comment:
+      type: object
+      additionalProperties: false
+      required:
+        - id
+        - author_name
+        - body
+        - created_at
+      properties:
+        id:
+          type: integer
+          format: int64
+        author_name:
+          type: string
+        body:
+          type: string
+        created_at:
+          type: string
+          format: date-time
+    CommentPage:
+      type: object
+      additionalProperties: false
+      required:
+        - comments
+        - next_before_id
+      properties:
+        comments:
+          type: array
+          maxItems: 100
+          items:
+            $ref: "#/components/schemas/Comment"
+        next_before_id:
+          type:
+            - integer
+            - "null"
+          format: int64

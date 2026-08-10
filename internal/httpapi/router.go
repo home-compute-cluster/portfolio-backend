@@ -19,6 +19,29 @@ func NewRouter(
 	return newRouter(database, readinessTimeout, logger, nil)
 }
 
+type FeatureHandlers struct {
+	ClientIP *httpmiddleware.ClientIPResolver
+	Comments *CommentHandler
+}
+
+func NewApplicationRouter(
+	database DatabasePinger,
+	readinessTimeout time.Duration,
+	logger *slog.Logger,
+	features FeatureHandlers,
+) http.Handler {
+	return newRouter(database, readinessTimeout, logger, func(router chi.Router) {
+		if features.ClientIP == nil || features.Comments == nil {
+			return
+		}
+		router.Route("/api/posts/{slug}", func(posts chi.Router) {
+			posts.Use(features.ClientIP.Middleware)
+			posts.Get("/comments", features.Comments.List)
+			posts.Post("/comments", features.Comments.Create)
+		})
+	})
+}
+
 func newRouter(
 	database DatabasePinger,
 	readinessTimeout time.Duration,
