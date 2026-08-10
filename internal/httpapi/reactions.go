@@ -81,6 +81,7 @@ func (handler *ReactionHandler) Stats(response http.ResponseWriter, request *htt
 	}{Views: stats.Views, Likes: stats.Likes})
 }
 
+// setLikeState resolves the visitor identity and executes one desired-state operation.
 func (handler *ReactionHandler) setLikeState(
 	response http.ResponseWriter,
 	request *http.Request,
@@ -107,6 +108,7 @@ func (handler *ReactionHandler) setLikeState(
 	response.WriteHeader(http.StatusNoContent)
 }
 
+// handleError maps application errors to stable public responses and logs unexpected failures.
 func (handler *ReactionHandler) handleError(
 	response http.ResponseWriter,
 	request *http.Request,
