@@ -113,6 +113,20 @@ paths:
             application/json:
               schema:
                 $ref: "#/components/schemas/Error"
+  /posts/{slug}/view:
+    parameters:
+      - $ref: "#/components/parameters/PostSlug"
+    post:
+      operationId: recordPostView
+      summary: Record a deduplicated post view
+      description: A visitor contributes at most one view per rolling configured window.
+      responses:
+        "204":
+          description: The view was accepted, including when it was already counted in the window.
+        "400":
+          $ref: "#/components/responses/BadRequest"
+        "404":
+          $ref: "#/components/responses/NotFound"
 components:
   parameters:
     PostSlug:

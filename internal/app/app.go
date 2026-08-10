@@ -16,8 +16,11 @@ import (
 	contentpostgres "github.com/home-compute-cluster/portfolio-backend/internal/content/postgres"
 	"github.com/home-compute-cluster/portfolio-backend/internal/httpapi"
 	httpmiddleware "github.com/home-compute-cluster/portfolio-backend/internal/httpapi/middleware"
+	"github.com/home-compute-cluster/portfolio-backend/internal/platform/clock"
 	"github.com/home-compute-cluster/portfolio-backend/internal/platform/postgres"
 	"github.com/home-compute-cluster/portfolio-backend/internal/platform/visitor"
+	"github.com/home-compute-cluster/portfolio-backend/internal/reactions"
+	reactionspostgres "github.com/home-compute-cluster/portfolio-backend/internal/reactions/postgres"
 )
 
 // Run constructs and serves the API until ctx is cancelled or the server fails.
@@ -42,10 +45,24 @@ func Run(ctx context.Context, cfg config.Config, logger *slog.Logger) error {
 			MaximumPageSize:    cfg.Comments.MaximumPageSize,
 		},
 	)
+	visitorIdentity := visitor.NewIdentity(cfg.Security.VisitorHMACKey)
 	commentHandler := httpapi.NewCommentHandler(
 		commentService,
-		visitor.NewIdentity(cfg.Security.VisitorHMACKey),
+		visitorIdentity,
 		nil, // Rate-limiting assignment: wire only after its tagged acceptance suite passes.
+		cfg.Database.QueryTimeout,
+		logger,
+	)
+	viewService := reactions.NewViewService(
+		reactionspostgres.NewViewStore(pool),
+		contentService,
+		clock.Real{},
+		cfg.Views.DeduplicationWindow,
+	)
+	viewHandler := httpapi.NewViewHandler(
+		viewService,
+		visitorIdentity,
+		nil, // Rate-limiting assignment: use a separate view allowance when implemented.
 		cfg.Database.QueryTimeout,
 		logger,
 	)
@@ -60,6 +77,7 @@ func Run(ctx context.Context, cfg config.Config, logger *slog.Logger) error {
 			httpapi.FeatureHandlers{
 				ClientIP: clientIP,
 				Comments: commentHandler,
+				Views:    viewHandler,
 			},
 		),
 		ReadHeaderTimeout: cfg.HTTP.ReadHeaderTimeout,

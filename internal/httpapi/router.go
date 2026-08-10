@@ -22,6 +22,7 @@ func NewRouter(
 type FeatureHandlers struct {
 	ClientIP *httpmiddleware.ClientIPResolver
 	Comments *CommentHandler
+	Views    *ViewHandler
 }
 
 func NewApplicationRouter(
@@ -31,13 +32,18 @@ func NewApplicationRouter(
 	features FeatureHandlers,
 ) http.Handler {
 	return newRouter(database, readinessTimeout, logger, func(router chi.Router) {
-		if features.ClientIP == nil || features.Comments == nil {
+		if features.ClientIP == nil || (features.Comments == nil && features.Views == nil) {
 			return
 		}
 		router.Route("/api/posts/{slug}", func(posts chi.Router) {
 			posts.Use(features.ClientIP.Middleware)
-			posts.Get("/comments", features.Comments.List)
-			posts.Post("/comments", features.Comments.Create)
+			if features.Comments != nil {
+				posts.Get("/comments", features.Comments.List)
+				posts.Post("/comments", features.Comments.Create)
+			}
+			if features.Views != nil {
+				posts.Post("/view", features.Views.Record)
+			}
 		})
 	})
 }
