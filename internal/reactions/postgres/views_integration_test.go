@@ -17,7 +17,7 @@ import (
 
 const testPost = "building-a-homelab"
 
-func TestRecordViewDeduplicatesConcurrentVisitorAtomically(t *testing.T) {
+func TestIntegrationRecordViewDeduplicatesConcurrentVisitorAtomically(t *testing.T) {
 	pool := migratedPool(t)
 	store := NewViewStore(pool)
 	now := time.Date(2026, time.August, 10, 12, 0, 0, 0, time.UTC)
@@ -67,7 +67,7 @@ func TestRecordViewDeduplicatesConcurrentVisitorAtomically(t *testing.T) {
 	}
 }
 
-func TestRecordViewUsesRollingWindowBoundary(t *testing.T) {
+func TestIntegrationRecordViewUsesRollingWindowBoundary(t *testing.T) {
 	pool := migratedPool(t)
 	store := NewViewStore(pool)
 	ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)

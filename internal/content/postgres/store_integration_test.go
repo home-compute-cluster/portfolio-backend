@@ -14,7 +14,7 @@ import (
 	"github.com/jackc/pgx/v5/pgxpool"
 )
 
-func TestPublishedPostExistsHonorsKindAndPublicationState(t *testing.T) {
+func TestIntegrationPublishedPostExistsHonorsKindAndPublicationState(t *testing.T) {
 	pool := migratedPool(t)
 	ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
 	defer cancel()
@@ -47,7 +47,7 @@ func TestPublishedPostExistsHonorsKindAndPublicationState(t *testing.T) {
 	}
 }
 
-func TestContentRegistryConstraintsRejectInvalidRows(t *testing.T) {
+func TestIntegrationContentRegistryConstraintsRejectInvalidRows(t *testing.T) {
 	pool := migratedPool(t)
 	ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
 	defer cancel()

@@ -1,10 +1,10 @@
 GO ?= go
 IMAGE ?= portfolio-backend:dev
 
-.PHONY: help fmt fmt-check tidy-check vet test test-integration test-race build docker-build ci
+.PHONY: help fmt fmt-check tidy-check vet test test-integration test-race test-rate-limit-assignment build docker-build ci
 
 help:
-	@echo "Available targets: fmt fmt-check tidy-check vet test test-integration test-race build docker-build ci"
+	@echo "Available targets: fmt fmt-check tidy-check vet test test-integration test-race test-rate-limit-assignment build docker-build ci"
 
 fmt:
 	$(GO) fmt ./...
@@ -27,6 +27,9 @@ test-integration:
 
 test-race:
 	$(GO) test -race ./...
+
+test-rate-limit-assignment:
+	$(GO) test -race -tags assignment ./internal/platform/ratelimit
 
 build:
 	mkdir -p bin

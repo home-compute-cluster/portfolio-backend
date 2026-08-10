@@ -42,6 +42,18 @@ go run ./cmd/api
 
 The API listens on `:8080` by default. Automated HTTP tests verify `/api/healthz`, `/api/readyz`, unknown routes, middleware recovery, and database-error privacy; manual endpoint probing is not part of routine acceptance.
 
+The currently usable dynamic routes are:
+
+```text
+GET  /api/posts/{slug}/comments
+POST /api/posts/{slug}/comments
+POST /api/posts/{slug}/view
+```
+
+Only slugs in the published content registry are accepted. Comments are plain text, newest-first, and cursor-paginated. Views use a rolling deduplication window. Comment moderation is implemented and tested but deliberately has no production route until admin authentication can protect the entire `/api/admin/*` group.
+
+The in-memory rate-limiting algorithm is the remaining Iteration 5 assignment. Its handler boundary and opt-in acceptance suite are present, but the permissive template is not wired into the API. Run `make test-rate-limit-assignment` while implementing it; do not treat anonymous-write deployment as fully hardened until that target passes and the limiter is constructed in `internal/app`.
+
 ## Automated verification
 
 Every push and pull request runs formatting, module-tidiness, vet, unit/HTTP tests, real-PostgreSQL integration tests, the race detector, both Go binary builds, and a container build. Developers are not expected to reproduce routine API behavior manually.

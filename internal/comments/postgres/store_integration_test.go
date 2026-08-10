@@ -19,7 +19,7 @@ import (
 
 const testPost = "building-a-homelab"
 
-func TestCreateVisibleIfUnderLimitIsAtomic(t *testing.T) {
+func TestIntegrationCreateVisibleIfUnderLimitIsAtomic(t *testing.T) {
 	pool := migratedPool(t)
 	store := NewStore(pool)
 
@@ -77,7 +77,7 @@ func TestCreateVisibleIfUnderLimitIsAtomic(t *testing.T) {
 	}
 }
 
-func TestListVisibleUsesStableDescendingCursor(t *testing.T) {
+func TestIntegrationListVisibleUsesStableDescendingCursor(t *testing.T) {
 	pool := migratedPool(t)
 	store := NewStore(pool)
 	ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
@@ -114,7 +114,7 @@ func TestListVisibleUsesStableDescendingCursor(t *testing.T) {
 	}
 }
 
-func TestCommentConstraintsRejectInvalidPersistentState(t *testing.T) {
+func TestIntegrationCommentConstraintsRejectInvalidPersistentState(t *testing.T) {
 	pool := migratedPool(t)
 	ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
 	defer cancel()
@@ -142,7 +142,7 @@ func TestCommentConstraintsRejectInvalidPersistentState(t *testing.T) {
 	}
 }
 
-func TestModerationPreservesVisibleCommentCap(t *testing.T) {
+func TestIntegrationModerationPreservesVisibleCommentCap(t *testing.T) {
 	pool := migratedPool(t)
 	store := NewStore(pool)
 	ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
