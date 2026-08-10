@@ -16,6 +16,7 @@ import (
 	"github.com/home-compute-cluster/portfolio-backend/internal/comments"
 	"github.com/home-compute-cluster/portfolio-backend/internal/content"
 	httpmiddleware "github.com/home-compute-cluster/portfolio-backend/internal/httpapi/middleware"
+	"github.com/home-compute-cluster/portfolio-backend/internal/platform/ratelimit"
 	"github.com/home-compute-cluster/portfolio-backend/internal/platform/visitor"
 )
 
@@ -29,6 +30,7 @@ type CommentService interface {
 type CommentHandler struct {
 	service      CommentService
 	identity     *visitor.Identity
+	limiter      ratelimit.Limiter
 	queryTimeout time.Duration
 	logger       *slog.Logger
 }
@@ -36,6 +38,7 @@ type CommentHandler struct {
 func NewCommentHandler(
 	service CommentService,
 	identity *visitor.Identity,
+	limiter ratelimit.Limiter,
 	queryTimeout time.Duration,
 	logger *slog.Logger,
 ) *CommentHandler {
@@ -45,6 +48,7 @@ func NewCommentHandler(
 	return &CommentHandler{
 		service:      service,
 		identity:     identity,
+		limiter:      limiter,
 		queryTimeout: queryTimeout,
 		logger:       logger,
 	}
@@ -118,6 +122,11 @@ func (handler *CommentHandler) Create(response http.ResponseWriter, request *htt
 		writeError(response, http.StatusInternalServerError, "internal_error")
 		return
 	}
+	visitorHash := handler.identity.Hash(address, request.UserAgent())
+	if handler.limiter != nil && !handler.limiter.Allow(visitorHash, time.Now()) {
+		writeError(response, http.StatusTooManyRequests, "rate_limited")
+		return
+	}
 
 	ctx, cancel := context.WithTimeout(request.Context(), handler.queryTimeout)
 	defer cancel()
@@ -125,7 +134,7 @@ func (handler *CommentHandler) Create(response http.ResponseWriter, request *htt
 		PostSlug:    chi.URLParam(request, "slug"),
 		AuthorName:  payload.AuthorName,
 		Body:        payload.Body,
-		VisitorHash: handler.identity.Hash(address, request.UserAgent()),
+		VisitorHash: visitorHash,
 	})
 	if err != nil {
 		handler.handleError(response, request, err)

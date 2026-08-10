@@ -45,6 +45,7 @@ func Run(ctx context.Context, cfg config.Config, logger *slog.Logger) error {
 	commentHandler := httpapi.NewCommentHandler(
 		commentService,
 		visitor.NewIdentity(cfg.Security.VisitorHMACKey),
+		nil, // Rate-limiting assignment: wire only after its tagged acceptance suite passes.
 		cfg.Database.QueryTimeout,
 		logger,
 	)

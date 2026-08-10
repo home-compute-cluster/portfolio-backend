@@ -16,6 +16,7 @@ import (
 	"github.com/home-compute-cluster/portfolio-backend/internal/comments"
 	"github.com/home-compute-cluster/portfolio-backend/internal/content"
 	httpmiddleware "github.com/home-compute-cluster/portfolio-backend/internal/httpapi/middleware"
+	"github.com/home-compute-cluster/portfolio-backend/internal/platform/ratelimit"
 	"github.com/home-compute-cluster/portfolio-backend/internal/platform/visitor"
 )
 
@@ -71,6 +72,26 @@ func TestCreateCommentHoneypotSilentlyDropsSubmission(t *testing.T) {
 	}
 	if service.createCalls != 0 {
 		t.Fatalf("honeypot called service %d times", service.createCalls)
+	}
+}
+
+func TestCreateCommentRateLimitBoundaryReturns429(t *testing.T) {
+	t.Parallel()
+
+	service := &fakeCommentService{}
+	response := commentRequestWithLimiter(
+		t,
+		service,
+		denyingLimiter{},
+		http.MethodPost,
+		"/api/posts/known-post/comments",
+		`{"author_name":"visitor","body":"comment"}`,
+	)
+	if response.Code != http.StatusTooManyRequests {
+		t.Fatalf("status = %d, want 429", response.Code)
+	}
+	if service.createCalls != 0 {
+		t.Fatal("rate-limited request reached the comment service")
 	}
 }
 
@@ -154,10 +175,23 @@ func commentRequest(
 	body string,
 ) *httptest.ResponseRecorder {
 	t.Helper()
+	return commentRequestWithLimiter(t, service, nil, method, target, body)
+}
+
+func commentRequestWithLimiter(
+	t *testing.T,
+	service *fakeCommentService,
+	limiter ratelimit.Limiter,
+	method string,
+	target string,
+	body string,
+) *httptest.ResponseRecorder {
+	t.Helper()
 	logger := slog.New(slog.NewTextHandler(io.Discard, nil))
 	handler := NewCommentHandler(
 		service,
 		visitor.NewIdentity([]byte("0123456789abcdef0123456789abcdef")),
+		limiter,
 		time.Second,
 		logger,
 	)
@@ -178,6 +212,10 @@ func commentRequest(
 	router.ServeHTTP(response, request)
 	return response
 }
+
+type denyingLimiter struct{}
+
+func (denyingLimiter) Allow([32]byte, time.Time) bool { return false }
 
 type fakeCommentService struct {
 	created     comments.Comment
