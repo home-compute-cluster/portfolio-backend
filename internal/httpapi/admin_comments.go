@@ -10,12 +10,13 @@ import (
 	"time"
 
 	"github.com/go-chi/chi/v5"
+	chimiddleware "github.com/go-chi/chi/v5/middleware"
 
 	"github.com/home-compute-cluster/portfolio-backend/internal/comments"
+	httpmiddleware "github.com/home-compute-cluster/portfolio-backend/internal/httpapi/middleware"
 )
 
-// AdminCommentHandler is deliberately not registered in the application router.
-// It must remain unreachable until admin session middleware protects its route group.
+// AdminCommentHandler exposes comment moderation only through the Access-protected admin route group.
 type AdminCommentHandler struct {
 	service      AdminCommentService
 	queryTimeout time.Duration
@@ -24,8 +25,8 @@ type AdminCommentHandler struct {
 
 type AdminCommentService interface {
 	List(ctx context.Context, status comments.Status, beforeID int64, limit int) ([]comments.Comment, error)
-	Hide(ctx context.Context, id int64) (comments.Comment, error)
-	Unhide(ctx context.Context, id int64) (comments.Comment, error)
+	Hide(ctx context.Context, id int64, audit comments.AuditContext) (comments.Comment, error)
+	Unhide(ctx context.Context, id int64, audit comments.AuditContext) (comments.Comment, error)
 }
 
 func NewAdminCommentHandler(
@@ -40,6 +41,10 @@ func NewAdminCommentHandler(
 }
 
 func (handler *AdminCommentHandler) List(response http.ResponseWriter, request *http.Request) {
+	if _, ok := httpmiddleware.AdminPrincipal(request.Context()); !ok {
+		writeError(response, http.StatusUnauthorized, "unauthorized")
+		return
+	}
 	beforeID, err := optionalPositiveInt64(request.URL.Query().Get("before_id"))
 	if err != nil {
 		writeError(response, http.StatusBadRequest, "invalid_cursor")
@@ -84,16 +89,24 @@ func (handler *AdminCommentHandler) Unhide(response http.ResponseWriter, request
 func (handler *AdminCommentHandler) setVisibility(
 	response http.ResponseWriter,
 	request *http.Request,
-	operation func(context.Context, int64) (comments.Comment, error),
+	operation func(context.Context, int64, comments.AuditContext) (comments.Comment, error),
 ) {
 	id, err := strconv.ParseInt(chi.URLParam(request, "id"), 10, 64)
 	if err != nil || id <= 0 {
 		writeError(response, http.StatusNotFound, "comment_not_found")
 		return
 	}
+	principal, ok := httpmiddleware.AdminPrincipal(request.Context())
+	if !ok {
+		writeError(response, http.StatusUnauthorized, "unauthorized")
+		return
+	}
 	ctx, cancel := context.WithTimeout(request.Context(), handler.queryTimeout)
 	defer cancel()
-	comment, err := operation(ctx, id)
+	comment, err := operation(ctx, id, comments.AuditContext{
+		ActorID:   principal.ActorID,
+		RequestID: chimiddleware.GetReqID(request.Context()),
+	})
 	if err != nil {
 		handler.handleError(response, request, err)
 		return
@@ -109,6 +122,8 @@ func (handler *AdminCommentHandler) handleError(response http.ResponseWriter, re
 		writeError(response, http.StatusNotFound, "comment_not_found")
 	case errors.Is(err, comments.ErrPostFull):
 		writeError(response, http.StatusConflict, "comment_limit_reached")
+	case errors.Is(err, comments.ErrInvalidAuditActor):
+		writeError(response, http.StatusUnauthorized, "unauthorized")
 	default:
 		handler.logger.Error("comment moderation failed", "error", err, "request_id", request.Header.Get("X-Request-ID"))
 		writeError(response, http.StatusInternalServerError, "internal_error")
