@@ -140,7 +140,7 @@ Added or completed:
 - implemented service, PostgreSQL, and HTTP handler layers with unit, HTTP, and real-PostgreSQL tests
 - deliberately left all moderation handlers out of the production router; an automated test verifies `/api/admin/comments` remains unavailable
 
-Moderation will be registered only after admin session authentication can protect the entire route group.
+Moderation will be registered only after Cloudflare Access middleware protects the entire route group.
 
 ## Iteration 7 — Post views
 
@@ -192,6 +192,21 @@ Automated verification completed against an isolated PostgreSQL 18 instance:
 
 The disposable PostgreSQL pod and its `15433` port-forward were removed after verification. The developer-managed `15432` port-forward was not changed.
 
+## Iteration 9 — Cloudflare Access admin authentication
+
+Status: complete
+
+Added or completed:
+
+- replaced the planned application password/session subsystem with Cloudflare Access as the administrator authority
+- added typed `CF_ACCESS_TEAM_DOMAIN`, `CF_ACCESS_AUD`, and `ADMIN_EMAIL` configuration with startup validation
+- added strict RS256 JWT parsing and cryptographic verification using the standard library
+- validates exact issuer, application audience membership, expiration, not-before, issued-at, configured administrator email, and stable subject identifier
+- added a bounded one-megabyte JWKS response limit, RSA key validation, cached key reuse, unknown-`kid` refresh, and fail-closed refresh behavior
+- added one reusable HTTP middleware boundary that rejects missing/invalid assertions and passes only a validated principal through request context
+- added generated-key and local-JWKS-server tests for invalid signature, issuer, audience, time, identity, key rotation, refresh failure, missing assertions, and valid handler access
+- confirmed there are no backend login/logout endpoints, administrator passwords, sessions, refresh tokens, or application-issued admin JWTs
+
 ## Next recommended work
 
-After completing the rate-limiter assignment, proceed to Iteration 9 for single-administrator authentication and protected admin route registration.
+Register the existing moderation handlers only inside the protected admin route group and add minimal mutation audit events in Iteration 10.

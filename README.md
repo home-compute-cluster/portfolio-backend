@@ -53,7 +53,7 @@ DELETE /api/posts/{slug}/like
 GET  /api/posts/{slug}/stats
 ```
 
-Only slugs in the published content registry are accepted. Comments are plain text, newest-first, and cursor-paginated. Views use a rolling deduplication window. Likes use explicit idempotent desired-state operations, and stats expose only aggregate view and like totals. Comment moderation is implemented and tested but deliberately has no production route until admin authentication can protect the entire `/api/admin/*` group.
+Only slugs in the published content registry are accepted. Comments are plain text, newest-first, and cursor-paginated. Views use a rolling deduplication window. Likes use explicit idempotent desired-state operations, and stats expose only aggregate view and like totals. Comment moderation is implemented and tested but deliberately has no production route until its entire route group is protected by Cloudflare Access verification.
 
 The in-memory rate-limiting algorithm is the remaining Iteration 5 assignment. Its handler boundary and opt-in acceptance suite are present, but the permissive template is not wired into the API. Run `make test-rate-limit-assignment` while implementing it; do not treat comment, view, or like writes as fully hardened until that target passes and separate limiters are constructed in `internal/app`.
 
@@ -84,3 +84,5 @@ CI validates the Go code and container build. The homelab GitOps repository rema
 Traefik routes `packetcraft.dev/api/*` to this backend and all other paths to the frontend. Database outages fail readiness but never liveness, so Kubernetes removes an affected pod from service without restarting it in a loop.
 
 `TRUSTED_PROXY_CIDRS` must contain only the actual Traefik and intermediate proxy network ranges. With it unset, forwarded headers are ignored and the direct peer is used. The application never trusts `X-Forwarded-For` from an arbitrary client, and Traefik must independently be configured with its own `forwardedHeaders.trustedIPs` boundary.
+
+Administrator authentication is owned by Cloudflare Access rather than an application password or session system. The API requires `CF_ACCESS_TEAM_DOMAIN`, `CF_ACCESS_AUD`, and `ADMIN_EMAIL`, fetches rotating RSA signing keys from the team certificates endpoint, and independently validates every assertion before protected handlers can run. These are public verification parameters; no Access assertion or cookie is stored or logged.
