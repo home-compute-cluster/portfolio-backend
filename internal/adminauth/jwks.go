@@ -55,7 +55,7 @@ func (cache *JWKSCache) Key(ctx context.Context, keyID string) (*rsa.PublicKey, 
 		return key, nil
 	}
 	if err := cache.refresh(ctx); err != nil {
-		return nil, err
+		return nil, fmt.Errorf("%w: %v", ErrSigningKeyUnavailable, err)
 	}
 	key, exists = cache.keys[keyID]
 	if !exists {
@@ -85,7 +85,7 @@ func (cache *JWKSCache) refresh(ctx context.Context) error {
 		return fmt.Errorf("read Access JWKS: %w", err)
 	}
 	if int64(len(data)) > maximumJWKSBytes {
-		return errors.New("Access JWKS response is too large")
+		return errors.New("access JWKS response is too large")
 	}
 	var document struct {
 		Keys []jwk `json:"keys"`
@@ -100,12 +100,12 @@ func (cache *JWKSCache) refresh(ctx context.Context) error {
 			return fmt.Errorf("decode Access JWK: %w", err)
 		}
 		if _, duplicate := keys[encoded.KeyID]; duplicate {
-			return errors.New("Access JWKS contains a duplicate key ID")
+			return errors.New("access JWKS contains a duplicate key ID")
 		}
 		keys[encoded.KeyID] = key
 	}
 	if len(keys) == 0 {
-		return errors.New("Access JWKS contains no usable keys")
+		return errors.New("access JWKS contains no usable keys")
 	}
 	cache.keys = keys
 	cache.fetchedAt = cache.now()

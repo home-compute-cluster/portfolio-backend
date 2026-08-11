@@ -3,9 +3,12 @@ package middleware
 import (
 	"context"
 	"encoding/json"
+	"errors"
 	"io"
 	"log/slog"
 	"net/http"
+
+	chimiddleware "github.com/go-chi/chi/v5/middleware"
 
 	"github.com/home-compute-cluster/portfolio-backend/internal/adminauth"
 )
@@ -38,13 +41,26 @@ func (authenticator *AccessAuthenticator) Authenticate(next http.Handler) http.H
 	return http.HandlerFunc(func(response http.ResponseWriter, request *http.Request) {
 		assertion := request.Header.Get(accessAssertionHeader)
 		if assertion == "" {
-			authenticator.logger.Warn("admin Access assertion rejected", "error_category", "access_assertion_missing")
+			authenticator.logger.Warn(
+				"admin Access assertion rejected",
+				"error_category", "access_assertion_missing",
+				"request_id", chimiddleware.GetReqID(request.Context()),
+			)
 			writeUnauthorized(response)
 			return
 		}
 		principal, err := authenticator.verifier.Verify(request.Context(), assertion)
 		if err != nil {
-			authenticator.logger.Warn("admin Access assertion rejected", "error_category", "access_assertion_invalid", "error", err)
+			category := "access_assertion_invalid"
+			if errors.Is(err, adminauth.ErrSigningKeyUnavailable) {
+				category = "access_key_refresh_failed"
+			}
+			authenticator.logger.Warn(
+				"admin Access assertion rejected",
+				"error_category", category,
+				"request_id", chimiddleware.GetReqID(request.Context()),
+				"error", err,
+			)
 			writeUnauthorized(response)
 			return
 		}

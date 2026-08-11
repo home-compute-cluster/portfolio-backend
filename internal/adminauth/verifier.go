@@ -23,6 +23,8 @@ var (
 	ErrMalformedAssertion = errors.New("malformed Access assertion")
 	ErrInvalidAssertion   = errors.New("invalid Access assertion")
 	ErrUnknownSigningKey  = errors.New("unknown Access signing key")
+	// ErrSigningKeyUnavailable distinguishes an operational JWKS refresh failure from a bad token.
+	ErrSigningKeyUnavailable = errors.New("access signing keys unavailable")
 )
 
 // Principal is the validated, minimal administrator identity passed to handlers.
@@ -110,7 +112,7 @@ func (verifier *Verifier) Verify(ctx context.Context, assertion string) (Princip
 }
 
 func (verifier *Verifier) validateClaims(claims accessClaims) error {
-	if claims.Issuer != verifier.issuer || !claims.Audience.Contains(verifier.audience) {
+	if claims.Type != "app" || claims.Issuer != verifier.issuer || !claims.Audience.Contains(verifier.audience) {
 		return ErrInvalidAssertion
 	}
 	if claims.Subject == "" || !strings.EqualFold(claims.Email, verifier.adminEmail) {
@@ -132,6 +134,7 @@ func (verifier *Verifier) validateClaims(claims accessClaims) error {
 }
 
 type accessClaims struct {
+	Type       string      `json:"type"`
 	Issuer     string      `json:"iss"`
 	Audience   audience    `json:"aud"`
 	Subject    string      `json:"sub"`
