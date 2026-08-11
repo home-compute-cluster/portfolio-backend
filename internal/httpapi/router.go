@@ -20,10 +20,11 @@ func NewRouter(
 }
 
 type FeatureHandlers struct {
-	ClientIP  *httpmiddleware.ClientIPResolver
-	Comments  *CommentHandler
-	Views     *ViewHandler
-	Reactions *ReactionHandler
+	ClientIP    *httpmiddleware.ClientIPResolver
+	AdminAccess func(http.Handler) http.Handler
+	Comments    *CommentHandler
+	Views       *ViewHandler
+	Reactions   *ReactionHandler
 }
 
 func NewApplicationRouter(

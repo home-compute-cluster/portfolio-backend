@@ -9,6 +9,7 @@ import (
 	"net/http"
 	"time"
 
+	"github.com/home-compute-cluster/portfolio-backend/internal/adminauth"
 	"github.com/home-compute-cluster/portfolio-backend/internal/comments"
 	commentspostgres "github.com/home-compute-cluster/portfolio-backend/internal/comments/postgres"
 	"github.com/home-compute-cluster/portfolio-backend/internal/config"
@@ -76,6 +77,18 @@ func Run(ctx context.Context, cfg config.Config, logger *slog.Logger) error {
 		logger,
 	)
 	clientIP := httpmiddleware.NewClientIPResolver(cfg.Security.TrustedProxyCIDRs)
+	accessKeys := adminauth.NewJWKSCache(
+		cfg.Access.TeamDomain,
+		&http.Client{Timeout: 3 * time.Second},
+		time.Hour,
+	)
+	accessVerifier := adminauth.NewVerifier(
+		cfg.Access.TeamDomain,
+		cfg.Access.Audience,
+		cfg.Access.AdminEmail,
+		accessKeys,
+	)
+	accessAuthenticator := httpmiddleware.NewAccessAuthenticator(accessVerifier, logger)
 
 	server := &http.Server{
 		Addr: cfg.HTTP.Address,
@@ -84,10 +97,11 @@ func Run(ctx context.Context, cfg config.Config, logger *slog.Logger) error {
 			cfg.Database.ReadinessTimeout,
 			logger,
 			httpapi.FeatureHandlers{
-				ClientIP:  clientIP,
-				Comments:  commentHandler,
-				Views:     viewHandler,
-				Reactions: reactionHandler,
+				ClientIP:    clientIP,
+				AdminAccess: accessAuthenticator.Authenticate,
+				Comments:    commentHandler,
+				Views:       viewHandler,
+				Reactions:   reactionHandler,
 			},
 		),
 		ReadHeaderTimeout: cfg.HTTP.ReadHeaderTimeout,
