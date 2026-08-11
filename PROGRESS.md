@@ -1,6 +1,6 @@
 # Project progress
 
-Last updated: 2026-08-10
+Last updated: 2026-08-11
 
 ## Iteration 0 — Repository baseline
 
@@ -249,6 +249,34 @@ External rollout still required:
 
 These external changes are intentionally not represented as completed by this application repository.
 
+## Iteration 12 — Production hardening
+
+Status: repository implementation complete; V1 completion still depends on the rate-limiter assignment and live infrastructure rollout
+
+Added or completed:
+
+- added structured request completion logs with generated request ID, method, route template, status, duration, response bytes, and coarse error category
+- kept concrete slugs/IDs and sensitive headers out of request logs, and corrected feature error logs to use the generated Chi request ID instead of an untrusted request header
+- added explicit event categories for Access assertion failures, signing-key refresh failures, future rate-limit rejections, and moderation actions
+- hardened panic recovery to return the same non-leaking structured JSON error shape as other API failures
+- hardened Access verification to require Cloudflare application-token type and added bounded network-timeout and refresh-failure logging tests
+- pinned CI actions to immutable commits, added pinned Staticcheck and govulncheck releases, and added a high/critical container vulnerability scan
+- upgraded the repository/container toolchain from Go 1.26.4 to the security-fixed Go 1.26.5 and upgraded `golang.org/x/text` from vulnerable v0.29.0 to v0.40.0
+- documented application, Access, abuse-control, logging, origin, and deployment security boundaries
+- added runbooks for database failure, migration failure, rollback, Tunnel failure, Access lockout/AUD rotation/JWKS failure, WAF false positives, visitor-key rotation, CNPG restore, and comment moderation
+
+Automated verification completed:
+
+- `go run honnef.co/go/tools/cmd/staticcheck@v0.7.0 ./...`
+- `go run golang.org/x/vuln/cmd/govulncheck@v1.6.0 ./...` (`No vulnerabilities found`)
+- unit and HTTP tests cover route-template privacy, response accounting, structured panic recovery, application-token enforcement, JWKS timeout, refresh-failure categorization, and assertion non-disclosure
+
+Remaining before V1 can be called complete:
+
+- implement and wire the bounded route-specific Go rate limiters and pass `make test-rate-limit-assignment`
+- apply and validate the GitOps, Cloudflare Access, Tunnel, and WAF configuration in their owning systems
+- let CI perform the Docker build and container scan because Docker is unavailable in the current local environment
+
 ## Next recommended work
 
-Complete production request logging, CI security checks, hardening review, and operational runbooks in Iteration 12.
+Finish the rate-limiter assignment, merge the stacked iteration branches in order, apply the external deployment configuration, and run the automated deployment smoke command.

@@ -1,6 +1,6 @@
 # portfolio-backend
 
-`portfolio-backend` is the Go API for [packetcraft.dev](https://packetcraft.dev). It is a small modular monolith that will provide post reactions, visitor comments, administrator authentication, and project content for the static Astro frontend.
+`portfolio-backend` is the Go API for [packetcraft.dev](https://packetcraft.dev). It is a small modular monolith that provides post reactions, visitor comments, and Access-protected moderation for the static Astro frontend. Authored content remains in Astro/Git rather than PostgreSQL.
 
 The implemented walking skeleton and feature slices provide typed configuration, PostgreSQL pooling, structured logging, liveness/readiness probes, graceful HTTP shutdown, versioned migrations, a content registry, public comments, visitor privacy controls, real-PostgreSQL integration tests, CI, and a production-oriented container image.
 
@@ -59,7 +59,9 @@ The in-memory rate-limiting algorithm is the remaining Iteration 5 assignment. I
 
 ## Automated verification
 
-Every push and pull request runs formatting, module-tidiness, vet, unit/HTTP tests, real-PostgreSQL integration tests, the race detector, both Go binary builds, and a container build. Developers are not expected to reproduce routine API behavior manually.
+Every push and pull request runs formatting, module-tidiness, vet, unit/HTTP tests, real-PostgreSQL integration tests, the race detector, all Go command builds, and a container build. Developers are not expected to reproduce routine API behavior manually.
+
+CI also runs pinned Staticcheck and govulncheck releases plus a high/critical container vulnerability scan. Post-deployment behavior is covered by the automated smoke command in `cmd/smoke`; incident procedures and the production security review live in `docs/runbooks.md` and `docs/security.md`.
 
 The same automated checks can be invoked locally when needed:
 
