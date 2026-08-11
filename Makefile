@@ -1,10 +1,10 @@
 GO ?= go
 IMAGE ?= portfolio-backend:dev
 
-.PHONY: help fmt fmt-check tidy-check vet test test-integration test-race test-rate-limit-assignment build docker-build ci
+.PHONY: help fmt fmt-check tidy-check vet test test-integration test-race test-rate-limit-assignment build smoke docker-build ci
 
 help:
-	@echo "Available targets: fmt fmt-check tidy-check vet test test-integration test-race test-rate-limit-assignment build docker-build ci"
+	@echo "Available targets: fmt fmt-check tidy-check vet test test-integration test-race test-rate-limit-assignment build smoke docker-build ci"
 
 fmt:
 	$(GO) fmt ./...
@@ -35,6 +35,10 @@ build:
 	mkdir -p bin
 	$(GO) build -o bin/api ./cmd/api
 	$(GO) build -o bin/migrate ./cmd/migrate
+	$(GO) build -o bin/smoke ./cmd/smoke
+
+smoke:
+	$(GO) run ./cmd/smoke $(SMOKE_ARGS)
 
 docker-build:
 	docker build --tag $(IMAGE) .

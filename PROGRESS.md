@@ -228,6 +228,27 @@ Automated verification:
 - PostgreSQL integration tests cover state transitions, idempotency, public visibility, comment-cap conflicts, and non-sensitive audit records
 - `go test ./...`
 
+## Iteration 11 — Deployment integration
+
+Status: repository implementation complete; live GitOps and Cloudflare rollout pending
+
+Added or completed:
+
+- expanded the reference manifest contract with separate public and Access-protected admin Traefik routes
+- documented ownership boundaries for ArgoCD/Kubernetes, CloudNativePG, Cloudflare Access/WAF, and this application repository
+- retained health/readiness probe separation, direct CNPG read-write Service access, a revision-specific migration Job, graceful termination, and a hardened non-root container contract
+- added a standard-library deployment smoke command covering probes, public stats/writes, comment create/list, Go rejection of missing and forged assertions, authenticated moderation, and optional unauthenticated Access-edge rejection
+- made the smoke workflow leave its generated comment hidden and ensured it never prints response bodies or the Access assertion
+- added deterministic `httptest` coverage for the smoke workflow and fail-closed admin-origin detection
+
+External rollout still required:
+
+- copy the application contract into the homelab GitOps repository with real image, Service, ConfigMap, Sealed Secret, IngressRoute, and migration Job values
+- configure the `admin.site.packetcraft.dev` deny-by-default Access application for the exact administrator identity and strong authentication
+- configure plan-appropriate Cloudflare WAF rate-limit rules for public writes, then run the smoke command from a trusted runner
+
+These external changes are intentionally not represented as completed by this application repository.
+
 ## Next recommended work
 
-Complete the GitOps integration contract, deployment smoke automation, production request logging, CI security checks, and operational runbooks in Iterations 11 and 12.
+Complete production request logging, CI security checks, hardening review, and operational runbooks in Iteration 12.
