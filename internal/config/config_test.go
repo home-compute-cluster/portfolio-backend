@@ -45,8 +45,53 @@ func TestLoadAPIRequiresStrongVisitorKey(t *testing.T) {
 	}
 
 	t.Setenv("VISITOR_HMAC_KEY", "0123456789abcdef0123456789abcdef")
+	t.Setenv("CF_ACCESS_TEAM_DOMAIN", "https://example.cloudflareaccess.com")
+	t.Setenv("CF_ACCESS_AUD", "test-audience")
+	t.Setenv("ADMIN_EMAIL", "admin@example.com")
 	if _, err := LoadAPI(); err != nil {
 		t.Fatalf("LoadAPI() with strong key error = %v", err)
+	}
+}
+
+func TestLoadAPIRequiresCloudflareAccessConfiguration(t *testing.T) {
+	clearEnvironment(t)
+	t.Setenv("DATABASE_URL", "postgres://portfolio@127.0.0.1:15432/portfolio?sslmode=require")
+	t.Setenv("VISITOR_HMAC_KEY", "0123456789abcdef0123456789abcdef")
+
+	for _, test := range []struct {
+		name  string
+		value string
+	}{
+		{"CF_ACCESS_TEAM_DOMAIN", "https://example.cloudflareaccess.com"},
+		{"CF_ACCESS_AUD", "test-audience"},
+		{"ADMIN_EMAIL", "admin@example.com"},
+	} {
+		if _, err := LoadAPI(); err == nil || !strings.Contains(err.Error(), test.name) {
+			t.Fatalf("without %s LoadAPI() error = %v", test.name, err)
+		}
+		t.Setenv(test.name, test.value)
+	}
+	if _, err := LoadAPI(); err != nil {
+		t.Fatalf("complete Access configuration error = %v", err)
+	}
+}
+
+func TestLoadValidatesAndNormalizesAccessTeamDomain(t *testing.T) {
+	clearEnvironment(t)
+	t.Setenv("DATABASE_URL", "postgres://portfolio@127.0.0.1:15432/portfolio?sslmode=require")
+	t.Setenv("CF_ACCESS_TEAM_DOMAIN", "https://example.cloudflareaccess.com/")
+	t.Setenv("ADMIN_EMAIL", " Admin@Example.COM ")
+	cfg, err := Load()
+	if err != nil {
+		t.Fatalf("Load() error = %v", err)
+	}
+	if cfg.Access.TeamDomain != "https://example.cloudflareaccess.com" || cfg.Access.AdminEmail != "admin@example.com" {
+		t.Fatalf("Access configuration = %#v", cfg.Access)
+	}
+
+	t.Setenv("CF_ACCESS_TEAM_DOMAIN", "http://example.cloudflareaccess.com/path")
+	if _, err := Load(); err == nil || !strings.Contains(err.Error(), "CF_ACCESS_TEAM_DOMAIN") {
+		t.Fatalf("invalid team domain error = %v", err)
 	}
 }
 
@@ -144,6 +189,9 @@ func clearEnvironment(t *testing.T) {
 		"VISITOR_HMAC_KEY",
 		"TRUSTED_PROXY_CIDRS",
 		"VIEW_DEDUP_WINDOW_HOURS",
+		"CF_ACCESS_TEAM_DOMAIN",
+		"CF_ACCESS_AUD",
+		"ADMIN_EMAIL",
 	} {
 		t.Setenv(name, "")
 	}

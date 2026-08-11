@@ -4,6 +4,7 @@ import (
 	"errors"
 	"fmt"
 	"net/netip"
+	"net/url"
 	"os"
 	"strconv"
 	"strings"
@@ -16,6 +17,7 @@ type Config struct {
 	Comments CommentsConfig
 	Security SecurityConfig
 	Views    ViewsConfig
+	Access   AccessConfig
 }
 
 type HTTPConfig struct {
@@ -54,6 +56,13 @@ type ViewsConfig struct {
 	DeduplicationWindow time.Duration
 }
 
+// AccessConfig contains the public Cloudflare Access verification parameters.
+type AccessConfig struct {
+	TeamDomain string
+	Audience   string
+	AdminEmail string
+}
+
 const (
 	databaseAuthorLimitChars  = 80
 	databaseCommentLimitChars = 2000
@@ -67,6 +76,15 @@ func LoadAPI() (Config, error) {
 	}
 	if len(cfg.Security.VisitorHMACKey) < 32 {
 		return Config{}, errors.New("VISITOR_HMAC_KEY must contain at least 32 bytes")
+	}
+	if cfg.Access.TeamDomain == "" {
+		return Config{}, errors.New("CF_ACCESS_TEAM_DOMAIN is required for the API")
+	}
+	if cfg.Access.Audience == "" {
+		return Config{}, errors.New("CF_ACCESS_AUD is required for the API")
+	}
+	if cfg.Access.AdminEmail == "" {
+		return Config{}, errors.New("ADMIN_EMAIL is required for the API")
 	}
 	return cfg, nil
 }
@@ -160,6 +178,13 @@ func Load() (Config, error) {
 		return Config{}, fmt.Errorf("VIEW_DEDUP_WINDOW_HOURS must not exceed %d", maximumViewWindowHours)
 	}
 
+	teamDomain, err := accessTeamDomain(os.Getenv("CF_ACCESS_TEAM_DOMAIN"))
+	if err != nil {
+		return Config{}, err
+	}
+	accessAudience := strings.TrimSpace(os.Getenv("CF_ACCESS_AUD"))
+	adminEmail := strings.ToLower(strings.TrimSpace(os.Getenv("ADMIN_EMAIL")))
+
 	return Config{
 		HTTP: HTTPConfig{
 			Address:           envString("HTTP_ADDR", ":8080"),
@@ -192,7 +217,24 @@ func Load() (Config, error) {
 		Views: ViewsConfig{
 			DeduplicationWindow: time.Duration(viewWindowHours) * time.Hour,
 		},
+		Access: AccessConfig{
+			TeamDomain: teamDomain,
+			Audience:   accessAudience,
+			AdminEmail: adminEmail,
+		},
 	}, nil
+}
+
+func accessTeamDomain(value string) (string, error) {
+	value = strings.TrimRight(strings.TrimSpace(value), "/")
+	if value == "" {
+		return "", nil
+	}
+	parsed, err := url.Parse(value)
+	if err != nil || parsed.Scheme != "https" || parsed.Host == "" || parsed.Path != "" || parsed.RawQuery != "" || parsed.Fragment != "" {
+		return "", errors.New("CF_ACCESS_TEAM_DOMAIN must be an HTTPS origin without a path")
+	}
+	return value, nil
 }
 
 func envString(name, fallback string) string {
