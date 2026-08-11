@@ -20,11 +20,12 @@ func NewRouter(
 }
 
 type FeatureHandlers struct {
-	ClientIP    *httpmiddleware.ClientIPResolver
-	AdminAccess func(http.Handler) http.Handler
-	Comments    *CommentHandler
-	Views       *ViewHandler
-	Reactions   *ReactionHandler
+	ClientIP      *httpmiddleware.ClientIPResolver
+	AdminAccess   func(http.Handler) http.Handler
+	AdminComments *AdminCommentHandler
+	Comments      *CommentHandler
+	Views         *ViewHandler
+	Reactions     *ReactionHandler
 }
 
 func NewApplicationRouter(
@@ -34,32 +35,39 @@ func NewApplicationRouter(
 	features FeatureHandlers,
 ) http.Handler {
 	return newRouter(database, readinessTimeout, logger, func(router chi.Router) {
-		if features.Comments == nil && features.Views == nil && features.Reactions == nil {
-			return
+		if features.Comments != nil || features.Views != nil || features.Reactions != nil {
+			router.Route("/api/posts/{slug}", func(posts chi.Router) {
+				if features.Comments != nil {
+					posts.Get("/comments", features.Comments.List)
+				}
+				if features.Reactions != nil {
+					posts.Get("/stats", features.Reactions.Stats)
+				}
+				if features.ClientIP != nil {
+					posts.Group(func(writes chi.Router) {
+						writes.Use(features.ClientIP.Middleware)
+						if features.Comments != nil {
+							writes.Post("/comments", features.Comments.Create)
+						}
+						if features.Views != nil {
+							writes.Post("/view", features.Views.Record)
+						}
+						if features.Reactions != nil {
+							writes.Put("/like", features.Reactions.Like)
+							writes.Delete("/like", features.Reactions.Unlike)
+						}
+					})
+				}
+			})
 		}
-		router.Route("/api/posts/{slug}", func(posts chi.Router) {
-			if features.Comments != nil {
-				posts.Get("/comments", features.Comments.List)
-			}
-			if features.Reactions != nil {
-				posts.Get("/stats", features.Reactions.Stats)
-			}
-			if features.ClientIP != nil {
-				posts.Group(func(writes chi.Router) {
-					writes.Use(features.ClientIP.Middleware)
-					if features.Comments != nil {
-						writes.Post("/comments", features.Comments.Create)
-					}
-					if features.Views != nil {
-						writes.Post("/view", features.Views.Record)
-					}
-					if features.Reactions != nil {
-						writes.Put("/like", features.Reactions.Like)
-						writes.Delete("/like", features.Reactions.Unlike)
-					}
-				})
-			}
-		})
+		if features.AdminAccess != nil && features.AdminComments != nil {
+			router.Route("/api/admin", func(admin chi.Router) {
+				admin.Use(features.AdminAccess)
+				admin.Get("/comments", features.AdminComments.List)
+				admin.Post("/comments/{id}/hide", features.AdminComments.Hide)
+				admin.Post("/comments/{id}/unhide", features.AdminComments.Unhide)
+			})
+		}
 	})
 }
 

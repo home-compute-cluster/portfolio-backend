@@ -53,7 +53,7 @@ DELETE /api/posts/{slug}/like
 GET  /api/posts/{slug}/stats
 ```
 
-Only slugs in the published content registry are accepted. Comments are plain text, newest-first, and cursor-paginated. Views use a rolling deduplication window. Likes use explicit idempotent desired-state operations, and stats expose only aggregate view and like totals. Comment moderation is implemented and tested but deliberately has no production route until its entire route group is protected by Cloudflare Access verification.
+Only slugs in the published content registry are accepted. Comments are plain text, newest-first, and cursor-paginated. Views use a rolling deduplication window. Likes use explicit idempotent desired-state operations, and stats expose only aggregate view and like totals. Comment listing, hiding, and unhiding are registered only as one Cloudflare Access-protected `/api/admin` route group; successful state changes write a minimal audit event in the same PostgreSQL transaction.
 
 The in-memory rate-limiting algorithm is the remaining Iteration 5 assignment. Its handler boundary and opt-in acceptance suite are present, but the permissive template is not wired into the API. Run `make test-rate-limit-assignment` while implementing it; do not treat comment, view, or like writes as fully hardened until that target passes and separate limiters are constructed in `internal/app`.
 

@@ -207,6 +207,27 @@ Added or completed:
 - added generated-key and local-JWKS-server tests for invalid signature, issuer, audience, time, identity, key rotation, refresh failure, missing assertions, and valid handler access
 - confirmed there are no backend login/logout endpoints, administrator passwords, sessions, refresh tokens, or application-issued admin JWTs
 
+## Iteration 10 — Authenticated moderation and audit
+
+Status: complete
+
+Added or completed:
+
+- registered admin comment listing, hide, and unhide only within one `/api/admin` route group protected by Cloudflare Access middleware
+- required handlers to consume the validated Access subject from request context and never trust raw identity headers
+- added a versioned `admin_audit_events` migration containing only event, actor, request, resource, state-transition, and timestamp metadata
+- made each real comment visibility transition and its audit insert one PostgreSQL transaction
+- kept repeated desired-state requests idempotent without duplicate audit events
+- retained bounded, cursor-paginated moderation listing and verified hidden comments remain absent from public results
+- documented the protected API in OpenAPI and confirmed the backend exposes no login/logout endpoints
+
+Automated verification:
+
+- HTTP tests prove missing assertions cannot reach any moderation handler and valid identities can list, hide, and unhide
+- service tests cover audit-context validation and pagination bounds
+- PostgreSQL integration tests cover state transitions, idempotency, public visibility, comment-cap conflicts, and non-sensitive audit records
+- `go test ./...`
+
 ## Next recommended work
 
-Register the existing moderation handlers only inside the protected admin route group and add minimal mutation audit events in Iteration 10.
+Complete the GitOps integration contract, deployment smoke automation, production request logging, CI security checks, and operational runbooks in Iterations 11 and 12.

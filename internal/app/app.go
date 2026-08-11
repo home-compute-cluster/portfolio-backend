@@ -35,16 +35,18 @@ func Run(ctx context.Context, cfg config.Config, logger *slog.Logger) error {
 	defer pool.Close()
 
 	contentService := content.NewService(contentpostgres.NewStore(pool))
+	commentStore := commentspostgres.NewStore(pool)
+	commentLimits := comments.Limits{
+		MaxAuthorChars:     cfg.Comments.MaxAuthorChars,
+		MaxCommentChars:    cfg.Comments.MaxCommentChars,
+		MaxCommentsPerPost: cfg.Comments.MaxCommentsPerPost,
+		DefaultPageSize:    cfg.Comments.DefaultPageSize,
+		MaximumPageSize:    cfg.Comments.MaximumPageSize,
+	}
 	commentService := comments.NewService(
-		commentspostgres.NewStore(pool),
+		commentStore,
 		contentService,
-		comments.Limits{
-			MaxAuthorChars:     cfg.Comments.MaxAuthorChars,
-			MaxCommentChars:    cfg.Comments.MaxCommentChars,
-			MaxCommentsPerPost: cfg.Comments.MaxCommentsPerPost,
-			DefaultPageSize:    cfg.Comments.DefaultPageSize,
-			MaximumPageSize:    cfg.Comments.MaximumPageSize,
-		},
+		commentLimits,
 	)
 	visitorIdentity := visitor.NewIdentity(cfg.Security.VisitorHMACKey)
 	commentHandler := httpapi.NewCommentHandler(
@@ -89,6 +91,11 @@ func Run(ctx context.Context, cfg config.Config, logger *slog.Logger) error {
 		accessKeys,
 	)
 	accessAuthenticator := httpmiddleware.NewAccessAuthenticator(accessVerifier, logger)
+	adminCommentHandler := httpapi.NewAdminCommentHandler(
+		comments.NewModerationService(commentStore, commentLimits),
+		cfg.Database.QueryTimeout,
+		logger,
+	)
 
 	server := &http.Server{
 		Addr: cfg.HTTP.Address,
@@ -97,11 +104,12 @@ func Run(ctx context.Context, cfg config.Config, logger *slog.Logger) error {
 			cfg.Database.ReadinessTimeout,
 			logger,
 			httpapi.FeatureHandlers{
-				ClientIP:    clientIP,
-				AdminAccess: accessAuthenticator.Authenticate,
-				Comments:    commentHandler,
-				Views:       viewHandler,
-				Reactions:   reactionHandler,
+				ClientIP:      clientIP,
+				AdminAccess:   accessAuthenticator.Authenticate,
+				AdminComments: adminCommentHandler,
+				Comments:      commentHandler,
+				Views:         viewHandler,
+				Reactions:     reactionHandler,
 			},
 		),
 		ReadHeaderTimeout: cfg.HTTP.ReadHeaderTimeout,

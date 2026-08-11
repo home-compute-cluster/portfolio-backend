@@ -167,7 +167,95 @@ paths:
           $ref: "#/components/responses/BadRequest"
         "404":
           $ref: "#/components/responses/NotFound"
+  /admin/comments:
+    get:
+      operationId: listAdminComments
+      summary: List comments for moderation newest first
+      security:
+        - CloudflareAccessAssertion: []
+      parameters:
+        - name: status
+          in: query
+          required: false
+          schema:
+            $ref: "#/components/schemas/CommentStatus"
+        - name: before_id
+          in: query
+          required: false
+          schema:
+            type: integer
+            format: int64
+            minimum: 1
+        - name: limit
+          in: query
+          required: false
+          schema:
+            type: integer
+            minimum: 1
+            maximum: 100
+            default: 25
+      responses:
+        "200":
+          description: A bounded page of comments, including hidden comments.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ModerationCommentPage"
+        "400":
+          $ref: "#/components/responses/BadRequest"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+  /admin/comments/{id}/hide:
+    parameters:
+      - $ref: "#/components/parameters/CommentID"
+    post:
+      operationId: hideComment
+      summary: Ensure a comment is hidden
+      security:
+        - CloudflareAccessAssertion: []
+      responses:
+        "200":
+          description: The desired hidden state is established.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ModerationComment"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+        "404":
+          $ref: "#/components/responses/NotFound"
+  /admin/comments/{id}/unhide:
+    parameters:
+      - $ref: "#/components/parameters/CommentID"
+    post:
+      operationId: unhideComment
+      summary: Ensure a comment is visible
+      security:
+        - CloudflareAccessAssertion: []
+      responses:
+        "200":
+          description: The desired visible state is established.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ModerationComment"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+        "404":
+          $ref: "#/components/responses/NotFound"
+        "409":
+          description: Restoring the comment would exceed the post comment cap.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Error"
 components:
+  securitySchemes:
+    CloudflareAccessAssertion:
+      type: apiKey
+      in: header
+      name: Cf-Access-Jwt-Assertion
+      description: Cloudflare Access application assertion; the backend validates its signature and claims.
   parameters:
     PostSlug:
       name: slug
@@ -177,6 +265,14 @@ components:
         type: string
         maxLength: 100
         pattern: "^[a-z0-9]+(-[a-z0-9]+)*$"
+    CommentID:
+      name: id
+      in: path
+      required: true
+      schema:
+        type: integer
+        format: int64
+        minimum: 1
   responses:
     BadRequest:
       description: The request is malformed or invalid.
@@ -185,7 +281,13 @@ components:
           schema:
             $ref: "#/components/schemas/Error"
     NotFound:
-      description: The published post is not registered.
+      description: The requested resource does not exist.
+      content:
+        application/json:
+          schema:
+            $ref: "#/components/schemas/Error"
+    Unauthorized:
+      description: A valid Cloudflare Access administrator assertion is required.
       content:
         application/json:
           schema:
@@ -254,6 +356,59 @@ components:
           maxItems: 100
           items:
             $ref: "#/components/schemas/Comment"
+        next_before_id:
+          type:
+            - integer
+            - "null"
+          format: int64
+    CommentStatus:
+      type: string
+      enum:
+        - visible
+        - hidden
+    ModerationComment:
+      type: object
+      additionalProperties: false
+      required:
+        - id
+        - post_slug
+        - author_name
+        - body
+        - status
+        - created_at
+        - hidden_at
+      properties:
+        id:
+          type: integer
+          format: int64
+        post_slug:
+          type: string
+        author_name:
+          type: string
+        body:
+          type: string
+        status:
+          $ref: "#/components/schemas/CommentStatus"
+        created_at:
+          type: string
+          format: date-time
+        hidden_at:
+          type:
+            - string
+            - "null"
+          format: date-time
+    ModerationCommentPage:
+      type: object
+      additionalProperties: false
+      required:
+        - comments
+        - next_before_id
+      properties:
+        comments:
+          type: array
+          maxItems: 100
+          items:
+            $ref: "#/components/schemas/ModerationComment"
         next_before_id:
           type:
             - integer
