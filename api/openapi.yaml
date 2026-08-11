@@ -127,6 +127,46 @@ paths:
           $ref: "#/components/responses/BadRequest"
         "404":
           $ref: "#/components/responses/NotFound"
+  /posts/{slug}/like:
+    parameters:
+      - $ref: "#/components/parameters/PostSlug"
+    put:
+      operationId: likePost
+      summary: Ensure the current visitor likes the post
+      responses:
+        "204":
+          description: The desired liked state is established.
+        "400":
+          $ref: "#/components/responses/BadRequest"
+        "404":
+          $ref: "#/components/responses/NotFound"
+    delete:
+      operationId: unlikePost
+      summary: Ensure the current visitor does not like the post
+      responses:
+        "204":
+          description: The desired unliked state is established.
+        "400":
+          $ref: "#/components/responses/BadRequest"
+        "404":
+          $ref: "#/components/responses/NotFound"
+  /posts/{slug}/stats:
+    parameters:
+      - $ref: "#/components/parameters/PostSlug"
+    get:
+      operationId: getPostStats
+      summary: Get public view and like totals
+      responses:
+        "200":
+          description: Aggregate statistics for the published post.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/PostStats"
+        "400":
+          $ref: "#/components/responses/BadRequest"
+        "404":
+          $ref: "#/components/responses/NotFound"
 components:
   parameters:
     PostSlug:
@@ -219,3 +259,18 @@ components:
             - integer
             - "null"
           format: int64
+    PostStats:
+      type: object
+      additionalProperties: false
+      required:
+        - views
+        - likes
+      properties:
+        views:
+          type: integer
+          format: int64
+          minimum: 0
+        likes:
+          type: integer
+          format: int64
+          minimum: 0

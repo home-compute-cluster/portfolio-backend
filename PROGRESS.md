@@ -124,7 +124,7 @@ Remaining assignment:
 
 - implement `internal/platform/ratelimit/AssignmentLimiter`
 - make `make test-rate-limit-assignment` pass
-- add typed comment/view allowance configuration and construct separate limiter instances in `internal/app`
+- add typed comment/view/like allowance configuration and construct separate limiter instances in `internal/app`
 
 The placeholder limiter is permissive and is intentionally not wired into the application. Iteration 5 must not be reported as complete until the assignment is implemented.
 
@@ -165,6 +165,33 @@ Completed against an isolated PostgreSQL 18 instance:
 
 The temporary PostgreSQL pod and its port-forward were removed after the run. Docker remains unavailable locally, so the unchanged container build continues to be verified by CI.
 
+## Iteration 8 — Likes and public stats
+
+Status: complete
+
+Added or completed:
+
+- added `PUT /api/posts/{slug}/like` and `DELETE /api/posts/{slug}/like` as explicit, idempotent desired-state operations
+- added a composite `(post_slug, visitor_hash)` primary key and visitor-hash length constraint
+- used `INSERT ... ON CONFLICT DO NOTHING` for atomic first/repeated likes and an idempotent conditional delete for unlikes
+- added `GET /api/posts/{slug}/stats` returning only aggregate `views` and `likes`
+- deliberately derived like totals with indexed `count(*)` rather than maintaining another cached counter that could drift
+- kept the existing cached rolling-window view total and read both totals in one PostgreSQL statement snapshot
+- added unit, HTTP, constraint, first/repeated operation, concurrency, stats-correctness, and unknown-post coverage
+- updated application wiring, OpenAPI, README, and the rate-limit assignment handoff
+
+The like limiter integration point exists but remains unwired with the other anonymous-write limiters until the Iteration 5 assignment is completed.
+
+Automated verification completed against an isolated PostgreSQL 18 instance:
+
+- formatting and module-tidiness checks
+- `go vet ./...`
+- `go test -count=1 ./...`
+- `go test -race -count=1 ./...`
+- `go build ./cmd/api ./cmd/migrate`
+
+The disposable PostgreSQL pod and its `15433` port-forward were removed after verification. The developer-managed `15432` port-forward was not changed.
+
 ## Next recommended work
 
-Complete the rate-limiting assignment, wire separate comment and view allowances, then proceed to Iteration 8 for the public aggregate stats endpoint.
+After completing the rate-limiter assignment, proceed to Iteration 9 for single-administrator authentication and protected admin route registration.

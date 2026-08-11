@@ -21,5 +21,5 @@ go test -race -tags assignment ./internal/platform/ratelimit
 ```
 
 The template is intentionally not constructed in `internal/app` until these
-tests pass. Once complete, pass it to `NewCommentHandler` and add the rate values
-to typed configuration.
+tests pass. Once complete, construct separate comment, view, and like limiter
+instances and add their rate values to typed configuration.

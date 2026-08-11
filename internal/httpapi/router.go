@@ -20,9 +20,10 @@ func NewRouter(
 }
 
 type FeatureHandlers struct {
-	ClientIP *httpmiddleware.ClientIPResolver
-	Comments *CommentHandler
-	Views    *ViewHandler
+	ClientIP  *httpmiddleware.ClientIPResolver
+	Comments  *CommentHandler
+	Views     *ViewHandler
+	Reactions *ReactionHandler
 }
 
 func NewApplicationRouter(
@@ -32,17 +33,30 @@ func NewApplicationRouter(
 	features FeatureHandlers,
 ) http.Handler {
 	return newRouter(database, readinessTimeout, logger, func(router chi.Router) {
-		if features.ClientIP == nil || (features.Comments == nil && features.Views == nil) {
+		if features.Comments == nil && features.Views == nil && features.Reactions == nil {
 			return
 		}
 		router.Route("/api/posts/{slug}", func(posts chi.Router) {
-			posts.Use(features.ClientIP.Middleware)
 			if features.Comments != nil {
 				posts.Get("/comments", features.Comments.List)
-				posts.Post("/comments", features.Comments.Create)
 			}
-			if features.Views != nil {
-				posts.Post("/view", features.Views.Record)
+			if features.Reactions != nil {
+				posts.Get("/stats", features.Reactions.Stats)
+			}
+			if features.ClientIP != nil {
+				posts.Group(func(writes chi.Router) {
+					writes.Use(features.ClientIP.Middleware)
+					if features.Comments != nil {
+						writes.Post("/comments", features.Comments.Create)
+					}
+					if features.Views != nil {
+						writes.Post("/view", features.Views.Record)
+					}
+					if features.Reactions != nil {
+						writes.Put("/like", features.Reactions.Like)
+						writes.Delete("/like", features.Reactions.Unlike)
+					}
+				})
 			}
 		})
 	})
