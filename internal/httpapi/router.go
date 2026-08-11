@@ -81,7 +81,11 @@ func newRouter(
 
 	router := chi.NewRouter()
 	router.Use(middleware.RequestID)
+	router.Use(httpmiddleware.RequestLogger(logger))
 	router.Use(httpmiddleware.Recoverer(logger))
+	router.MethodNotAllowed(func(response http.ResponseWriter, _ *http.Request) {
+		response.WriteHeader(http.StatusMethodNotAllowed)
+	})
 
 	router.Get("/api/healthz", health.Healthz)
 	router.Get("/api/readyz", health.Readyz)
@@ -89,6 +93,8 @@ func newRouter(
 	if additionalRoutes != nil {
 		additionalRoutes(router)
 	}
+	// A final wildcard keeps unmatched requests inside the normal middleware chain.
+	router.Handle("/*", http.NotFoundHandler())
 
 	return router
 }

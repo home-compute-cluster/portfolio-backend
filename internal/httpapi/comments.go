@@ -12,6 +12,7 @@ import (
 	"time"
 
 	"github.com/go-chi/chi/v5"
+	chimiddleware "github.com/go-chi/chi/v5/middleware"
 
 	"github.com/home-compute-cluster/portfolio-backend/internal/comments"
 	"github.com/home-compute-cluster/portfolio-backend/internal/content"
@@ -124,6 +125,11 @@ func (handler *CommentHandler) Create(response http.ResponseWriter, request *htt
 	}
 	visitorHash := handler.identity.Hash(address, request.UserAgent())
 	if handler.limiter != nil && !handler.limiter.Allow(visitorHash, time.Now()) {
+		handler.logger.Warn(
+			"rate limit rejected",
+			"error_category", "rate_limit_rejected",
+			"request_id", chimiddleware.GetReqID(request.Context()),
+		)
 		writeError(response, http.StatusTooManyRequests, "rate_limited")
 		return
 	}
@@ -156,7 +162,7 @@ func (handler *CommentHandler) handleError(response http.ResponseWriter, request
 	case errors.Is(err, comments.ErrPostFull):
 		writeError(response, http.StatusConflict, "comment_limit_reached")
 	default:
-		handler.logger.Error("comment request failed", "error", err, "request_id", request.Header.Get("X-Request-ID"))
+		handler.logger.Error("comment request failed", "error", err, "request_id", chimiddleware.GetReqID(request.Context()))
 		writeError(response, http.StatusInternalServerError, "internal_error")
 	}
 }
