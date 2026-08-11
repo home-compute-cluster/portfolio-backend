@@ -147,6 +147,7 @@ func TestIntegrationModerationPreservesVisibleCommentCap(t *testing.T) {
 	store := NewStore(pool)
 	ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
 	defer cancel()
+	audit := comments.AuditContext{ActorID: "stable-admin-id", RequestID: "request-123"}
 
 	first, err := store.CreateVisibleIfUnderLimit(ctx, comments.CreateInput{
 		PostSlug: testPost, AuthorName: "first", Body: "comment", VisitorHash: hash(1),
@@ -154,12 +155,19 @@ func TestIntegrationModerationPreservesVisibleCommentCap(t *testing.T) {
 	if err != nil {
 		t.Fatalf("create first comment: %v", err)
 	}
-	hidden, err := store.SetVisibility(ctx, first.ID, comments.StatusHidden, 1)
+	hidden, err := store.SetVisibility(ctx, first.ID, comments.StatusHidden, 1, audit)
 	if err != nil {
 		t.Fatalf("hide first comment: %v", err)
 	}
 	if hidden.Status != comments.StatusHidden || hidden.HiddenAt == nil {
 		t.Fatalf("hidden state = %#v", hidden)
+	}
+	publicAfterHide, err := store.ListVisible(ctx, testPost, 0, 10)
+	if err != nil {
+		t.Fatalf("list public comments after hide: %v", err)
+	}
+	if len(publicAfterHide) != 0 {
+		t.Fatalf("public comments after hide = %v, want none", commentIDs(publicAfterHide))
 	}
 
 	second, err := store.CreateVisibleIfUnderLimit(ctx, comments.CreateInput{
@@ -168,20 +176,20 @@ func TestIntegrationModerationPreservesVisibleCommentCap(t *testing.T) {
 	if err != nil {
 		t.Fatalf("create replacement visible comment: %v", err)
 	}
-	if _, err := store.SetVisibility(ctx, first.ID, comments.StatusVisible, 1); !errors.Is(err, comments.ErrPostFull) {
+	if _, err := store.SetVisibility(ctx, first.ID, comments.StatusVisible, 1, audit); !errors.Is(err, comments.ErrPostFull) {
 		t.Fatalf("unhide over cap error = %v, want ErrPostFull", err)
 	}
-	if _, err := store.SetVisibility(ctx, second.ID, comments.StatusHidden, 1); err != nil {
+	if _, err := store.SetVisibility(ctx, second.ID, comments.StatusHidden, 1, audit); err != nil {
 		t.Fatalf("hide second comment: %v", err)
 	}
-	unhidden, err := store.SetVisibility(ctx, first.ID, comments.StatusVisible, 1)
+	unhidden, err := store.SetVisibility(ctx, first.ID, comments.StatusVisible, 1, audit)
 	if err != nil {
 		t.Fatalf("unhide first comment: %v", err)
 	}
 	if unhidden.Status != comments.StatusVisible || unhidden.HiddenAt != nil {
 		t.Fatalf("unhidden state = %#v", unhidden)
 	}
-	if _, err := store.SetVisibility(ctx, first.ID, comments.StatusVisible, 1); err != nil {
+	if _, err := store.SetVisibility(ctx, first.ID, comments.StatusVisible, 1, audit); err != nil {
 		t.Fatalf("idempotent unhide: %v", err)
 	}
 
@@ -191,6 +199,43 @@ func TestIntegrationModerationPreservesVisibleCommentCap(t *testing.T) {
 	}
 	if len(hiddenComments) != 1 || hiddenComments[0].ID != second.ID {
 		t.Fatalf("hidden comment IDs = %v, want [%d]", commentIDs(hiddenComments), second.ID)
+	}
+
+	var events int
+	var actorID, requestID string
+	if err := pool.QueryRow(ctx, `
+		SELECT count(*), min(actor_id), min(request_id)
+		FROM admin_audit_events
+	`).Scan(&events, &actorID, &requestID); err != nil {
+		t.Fatalf("read moderation audit events: %v", err)
+	}
+	if events != 3 || actorID != audit.ActorID || requestID != audit.RequestID {
+		t.Fatalf("audit summary = count %d, actor %q, request %q", events, actorID, requestID)
+	}
+}
+
+func TestIntegrationModerationUnknownCommentDoesNotAudit(t *testing.T) {
+	pool := migratedPool(t)
+	store := NewStore(pool)
+	ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
+	defer cancel()
+
+	_, err := store.SetVisibility(
+		ctx,
+		999999,
+		comments.StatusHidden,
+		10,
+		comments.AuditContext{ActorID: "stable-admin-id"},
+	)
+	if !errors.Is(err, comments.ErrNotFound) {
+		t.Fatalf("SetVisibility() error = %v, want ErrNotFound", err)
+	}
+	var events int
+	if err := pool.QueryRow(ctx, `SELECT count(*) FROM admin_audit_events`).Scan(&events); err != nil {
+		t.Fatalf("count audit events: %v", err)
+	}
+	if events != 0 {
+		t.Fatalf("unknown comment audit events = %d, want 0", events)
 	}
 }
 

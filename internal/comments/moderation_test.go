@@ -30,17 +30,27 @@ func TestModerationUsesExplicitDesiredState(t *testing.T) {
 
 	store := &recordingModerationStore{}
 	service := NewModerationService(store, testLimits())
-	if _, err := service.Hide(context.Background(), 4); err != nil {
+	audit := AuditContext{ActorID: "admin-subject", RequestID: "request-id"}
+	if _, err := service.Hide(context.Background(), 4, audit); err != nil {
 		t.Fatalf("Hide() error = %v", err)
 	}
 	if store.status != StatusHidden {
 		t.Fatalf("Hide desired status = %q", store.status)
 	}
-	if _, err := service.Unhide(context.Background(), 4); err != nil {
+	if _, err := service.Unhide(context.Background(), 4, audit); err != nil {
 		t.Fatalf("Unhide() error = %v", err)
 	}
 	if store.status != StatusVisible {
 		t.Fatalf("Unhide desired status = %q", store.status)
+	}
+}
+
+func TestModerationRejectsMissingAuditActor(t *testing.T) {
+	t.Parallel()
+
+	service := NewModerationService(&recordingModerationStore{}, testLimits())
+	if _, err := service.Hide(context.Background(), 4, AuditContext{}); !errors.Is(err, ErrInvalidAuditActor) {
+		t.Fatalf("Hide() error = %v, want ErrInvalidAuditActor", err)
 	}
 }
 
@@ -65,6 +75,7 @@ func (store *recordingModerationStore) SetVisibility(
 	_ int64,
 	status Status,
 	_ int,
+	_ AuditContext,
 ) (Comment, error) {
 	store.status = status
 	return Comment{Status: status}, nil

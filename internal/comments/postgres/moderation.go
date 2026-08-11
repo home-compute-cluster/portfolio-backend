@@ -47,6 +47,7 @@ func (store *Store) SetVisibility(
 	id int64,
 	desired comments.Status,
 	maxVisible int,
+	audit comments.AuditContext,
 ) (comments.Comment, error) {
 	tx, err := store.pool.BeginTx(ctx, pgx.TxOptions{})
 	if err != nil {
@@ -109,6 +110,19 @@ func (store *Store) SetVisibility(
 	`, id, desired))
 	if err != nil {
 		return comments.Comment{}, fmt.Errorf("update comment visibility: %w", err)
+	}
+	eventType := "comment.hide"
+	if desired == comments.StatusVisible {
+		eventType = "comment.unhide"
+	}
+	if _, err := tx.Exec(ctx, `
+		INSERT INTO admin_audit_events (
+			event_type, actor_id, request_id, resource_type, resource_id,
+			previous_state, new_state
+		)
+		VALUES ($1, $2, NULLIF($3, ''), 'comment', $4, $5, $6)
+	`, eventType, audit.ActorID, audit.RequestID, id, current.Status, desired); err != nil {
+		return comments.Comment{}, fmt.Errorf("record comment moderation audit: %w", err)
 	}
 	if err := tx.Commit(ctx); err != nil {
 		return comments.Comment{}, fmt.Errorf("commit comment moderation: %w", err)
