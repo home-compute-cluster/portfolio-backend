@@ -1,8 +1,10 @@
 package middleware
 
 import (
+	"bytes"
 	"context"
 	"errors"
+	"log/slog"
 	"net/http"
 	"net/http/httptest"
 	"strings"
@@ -40,6 +42,31 @@ func TestAccessAuthenticatorRejectsMissingAndInvalidAssertions(t *testing.T) {
 				t.Fatal("unauthorized response exposed assertion")
 			}
 		})
+	}
+}
+
+func TestAccessAuthenticatorCategorizesSigningKeyRefreshFailure(t *testing.T) {
+	t.Parallel()
+
+	var logs bytes.Buffer
+	logger := slog.New(slog.NewJSONHandler(&logs, nil))
+	verifier := &stubAccessVerifier{err: adminauth.ErrSigningKeyUnavailable}
+	handler := NewAccessAuthenticator(verifier, logger).Authenticate(http.HandlerFunc(func(http.ResponseWriter, *http.Request) {
+		t.Fatal("handler reached during signing-key failure")
+	}))
+	request := httptest.NewRequest(http.MethodGet, "/api/admin/comments", nil)
+	request.Header.Set(accessAssertionHeader, "not-logged")
+	response := httptest.NewRecorder()
+	handler.ServeHTTP(response, request)
+
+	if response.Code != http.StatusUnauthorized {
+		t.Fatalf("status = %d, want 401", response.Code)
+	}
+	if !strings.Contains(logs.String(), "access_key_refresh_failed") {
+		t.Fatalf("log = %s, want refresh failure category", logs.String())
+	}
+	if strings.Contains(logs.String(), "not-logged") {
+		t.Fatal("log exposed Access assertion")
 	}
 }
 

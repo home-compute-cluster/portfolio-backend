@@ -24,6 +24,7 @@ func TestVerifierValidatesAccessAssertion(t *testing.T) {
 	)
 	verifier.now = func() time.Time { return now }
 	assertion := signAssertion(t, key, "key-1", "RS256", map[string]any{
+		"type":                    "app",
 		"iss":                     "https://team.cloudflareaccess.com",
 		"aud":                     []string{"another-audience", "expected-audience"},
 		"sub":                     "stable-admin-id",
@@ -57,6 +58,7 @@ func TestVerifierRejectsInvalidAssertions(t *testing.T) {
 
 	validClaims := func() map[string]any {
 		return map[string]any{
+			"type":  "app",
 			"iss":   "https://team.cloudflareaccess.com",
 			"aud":   "expected-audience",
 			"sub":   "stable-admin-id",
@@ -73,6 +75,7 @@ func TestVerifierRejectsInvalidAssertions(t *testing.T) {
 	}{
 		{"invalid signature", "RS256", otherKey, func(map[string]any) {}},
 		{"wrong issuer", "RS256", key, func(claims map[string]any) { claims["iss"] = "https://other.cloudflareaccess.com" }},
+		{"wrong token type", "RS256", key, func(claims map[string]any) { claims["type"] = "org" }},
 		{"wrong audience", "RS256", key, func(claims map[string]any) { claims["aud"] = "other-audience" }},
 		{"expired", "RS256", key, func(claims map[string]any) { claims["exp"] = now.Add(-time.Minute).Unix() }},
 		{"future not-before", "RS256", key, func(claims map[string]any) { claims["nbf"] = now.Add(time.Minute).Unix() }},

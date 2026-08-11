@@ -79,16 +79,17 @@ func (handler *AdminCommentHandler) List(response http.ResponseWriter, request *
 }
 
 func (handler *AdminCommentHandler) Hide(response http.ResponseWriter, request *http.Request) {
-	handler.setVisibility(response, request, handler.service.Hide)
+	handler.setVisibility(response, request, comments.StatusHidden, handler.service.Hide)
 }
 
 func (handler *AdminCommentHandler) Unhide(response http.ResponseWriter, request *http.Request) {
-	handler.setVisibility(response, request, handler.service.Unhide)
+	handler.setVisibility(response, request, comments.StatusVisible, handler.service.Unhide)
 }
 
 func (handler *AdminCommentHandler) setVisibility(
 	response http.ResponseWriter,
 	request *http.Request,
+	desired comments.Status,
 	operation func(context.Context, int64, comments.AuditContext) (comments.Comment, error),
 ) {
 	id, err := strconv.ParseInt(chi.URLParam(request, "id"), 10, 64)
@@ -111,6 +112,15 @@ func (handler *AdminCommentHandler) setVisibility(
 		handler.handleError(response, request, err)
 		return
 	}
+	handler.logger.Info(
+		"comment moderation completed",
+		"error_category", "moderation_action",
+		"request_id", chimiddleware.GetReqID(request.Context()),
+		"actor_id", principal.ActorID,
+		"resource_type", "comment",
+		"resource_id", id,
+		"desired_state", desired,
+	)
 	writeJSON(response, http.StatusOK, moderationComment(comment))
 }
 
@@ -125,7 +135,7 @@ func (handler *AdminCommentHandler) handleError(response http.ResponseWriter, re
 	case errors.Is(err, comments.ErrInvalidAuditActor):
 		writeError(response, http.StatusUnauthorized, "unauthorized")
 	default:
-		handler.logger.Error("comment moderation failed", "error", err, "request_id", request.Header.Get("X-Request-ID"))
+		handler.logger.Error("comment moderation failed", "error", err, "request_id", chimiddleware.GetReqID(request.Context()))
 		writeError(response, http.StatusInternalServerError, "internal_error")
 	}
 }

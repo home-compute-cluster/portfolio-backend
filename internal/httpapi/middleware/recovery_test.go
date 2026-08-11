@@ -28,6 +28,9 @@ func TestRecovererHidesPanicDetails(t *testing.T) {
 	if strings.Contains(response.Body.String(), privatePanic) {
 		t.Fatal("response leaked panic detail")
 	}
+	if response.Header().Get("Content-Type") != "application/json; charset=utf-8" || response.Body.String() != "{\"error\":\"internal_error\"}\n" {
+		t.Fatalf("panic response = headers %#v body %q", response.Header(), response.Body.String())
+	}
 	if !strings.Contains(logs.String(), "panic recovered") {
 		t.Fatal("panic was not logged")
 	}

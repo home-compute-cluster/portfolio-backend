@@ -9,6 +9,7 @@ import (
 	"time"
 
 	"github.com/go-chi/chi/v5"
+	chimiddleware "github.com/go-chi/chi/v5/middleware"
 
 	"github.com/home-compute-cluster/portfolio-backend/internal/content"
 	httpmiddleware "github.com/home-compute-cluster/portfolio-backend/internal/httpapi/middleware"
@@ -53,6 +54,11 @@ func (handler *ViewHandler) Record(response http.ResponseWriter, request *http.R
 	}
 	visitorHash := handler.identity.Hash(address, request.UserAgent())
 	if handler.limiter != nil && !handler.limiter.Allow(visitorHash, time.Now()) {
+		handler.logger.Warn(
+			"rate limit rejected",
+			"error_category", "rate_limit_rejected",
+			"request_id", chimiddleware.GetReqID(request.Context()),
+		)
 		writeError(response, http.StatusTooManyRequests, "rate_limited")
 		return
 	}
@@ -66,7 +72,7 @@ func (handler *ViewHandler) Record(response http.ResponseWriter, request *http.R
 		case errors.Is(err, content.ErrNotFound):
 			writeError(response, http.StatusNotFound, "post_not_found")
 		default:
-			handler.logger.Error("record view failed", "error", err, "request_id", request.Header.Get("X-Request-ID"))
+			handler.logger.Error("record view failed", "error", err, "request_id", chimiddleware.GetReqID(request.Context()))
 			writeError(response, http.StatusInternalServerError, "internal_error")
 		}
 		return

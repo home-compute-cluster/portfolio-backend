@@ -62,6 +62,24 @@ func TestJWKSCacheRefreshFailureFailsClosed(t *testing.T) {
 	}
 }
 
+func TestJWKSCacheHonorsNetworkTimeout(t *testing.T) {
+	t.Parallel()
+
+	server := httptest.NewServer(http.HandlerFunc(func(_ http.ResponseWriter, request *http.Request) {
+		<-request.Context().Done()
+	}))
+	defer server.Close()
+
+	cache := NewJWKSCache(server.URL, &http.Client{Timeout: 20 * time.Millisecond}, time.Hour)
+	started := time.Now()
+	if _, err := cache.Key(context.Background(), "unknown"); err == nil {
+		t.Fatal("Key() error = nil during network timeout")
+	}
+	if elapsed := time.Since(started); elapsed > time.Second {
+		t.Fatalf("Key() timeout took %s, want less than one second", elapsed)
+	}
+}
+
 func jwksDocument(t *testing.T, keyID string, key *rsa.PrivateKey) []byte {
 	t.Helper()
 	publicKey := &key.PublicKey

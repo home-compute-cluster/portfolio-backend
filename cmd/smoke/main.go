@@ -160,10 +160,10 @@ func run(ctx context.Context, config smokeConfig, client *http.Client) error {
 	}
 
 	if err := unauthenticatedAdmin.expect(ctx, http.MethodGet, "/api/admin/comments", nil, http.StatusUnauthorized); err != nil {
-		return fmt.Errorf("Go missing-assertion check: %w", err)
+		return fmt.Errorf("go missing-assertion check: %w", err)
 	}
 	if err := forgedAdmin.expect(ctx, http.MethodGet, "/api/admin/comments", nil, http.StatusUnauthorized); err != nil {
-		return fmt.Errorf("Go forged-assertion check: %w", err)
+		return fmt.Errorf("go forged-assertion check: %w", err)
 	}
 	adminCommentsBody, err := admin.expectJSON(ctx, http.MethodGet, "/api/admin/comments?limit=100", nil, http.StatusOK)
 	if err != nil {
@@ -193,10 +193,10 @@ func run(ctx context.Context, config smokeConfig, client *http.Client) error {
 		}, config.adminEdgeURL, "")
 		status, err := edge.status(ctx, http.MethodGet, "/api/admin/comments", nil)
 		if err != nil {
-			return fmt.Errorf("Access edge check: %w", err)
+			return fmt.Errorf("access edge check: %w", err)
 		}
 		if status >= 200 && status < 300 {
-			return errors.New("Access edge allowed an unauthenticated admin request")
+			return errors.New("access edge allowed an unauthenticated admin request")
 		}
 	}
 	return nil

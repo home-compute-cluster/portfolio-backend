@@ -1,10 +1,12 @@
 GO ?= go
 IMAGE ?= portfolio-backend:dev
+STATICCHECK ?= $(GO) run honnef.co/go/tools/cmd/staticcheck@v0.7.0
+GOVULNCHECK ?= $(GO) run golang.org/x/vuln/cmd/govulncheck@v1.6.0
 
-.PHONY: help fmt fmt-check tidy-check vet test test-integration test-race test-rate-limit-assignment build smoke docker-build ci
+.PHONY: help fmt fmt-check tidy-check vet staticcheck govulncheck test test-integration test-race test-rate-limit-assignment build smoke docker-build ci
 
 help:
-	@echo "Available targets: fmt fmt-check tidy-check vet test test-integration test-race test-rate-limit-assignment build smoke docker-build ci"
+	@echo "Available targets: fmt fmt-check tidy-check vet staticcheck govulncheck test test-integration test-race test-rate-limit-assignment build smoke docker-build ci"
 
 fmt:
 	$(GO) fmt ./...
@@ -18,6 +20,12 @@ tidy-check:
 
 vet:
 	$(GO) vet ./...
+
+staticcheck:
+	$(STATICCHECK) ./...
+
+govulncheck:
+	$(GOVULNCHECK) ./...
 
 test:
 	$(GO) test -skip '^TestIntegration' ./...
@@ -43,4 +51,4 @@ smoke:
 docker-build:
 	docker build --tag $(IMAGE) .
 
-ci: fmt-check tidy-check vet test test-race build
+ci: fmt-check tidy-check vet staticcheck govulncheck test test-race build
