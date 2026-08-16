@@ -80,7 +80,7 @@ func testLimits() Limits {
 
 type acceptingRegistry struct{}
 
-func (acceptingRegistry) RequirePublishedContent(context.Context, string) error { return nil }
+func (acceptingRegistry) RequireCommentsEnabled(context.Context, string) error { return nil }
 
 type recordingStore struct {
 	lastLimit int

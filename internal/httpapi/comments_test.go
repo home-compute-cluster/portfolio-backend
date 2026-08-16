@@ -151,6 +151,8 @@ func TestCommentErrorsMapWithoutLeakingDetails(t *testing.T) {
 		want int
 	}{
 		{content.ErrNotFound, http.StatusNotFound},
+		{content.ErrCommentsDisabled, http.StatusNotFound},
+		{comments.ErrUnavailable, http.StatusNotFound},
 		{comments.ErrInvalidBody, http.StatusBadRequest},
 		{comments.ErrPostFull, http.StatusConflict},
 		{errors.New("private database detail"), http.StatusInternalServerError},
@@ -164,6 +166,19 @@ func TestCommentErrorsMapWithoutLeakingDetails(t *testing.T) {
 		if strings.Contains(response.Body.String(), "private database detail") {
 			t.Fatal("response leaked internal error")
 		}
+	}
+}
+
+func TestCommentsDisabledUsesStablePublicError(t *testing.T) {
+	t.Parallel()
+
+	service := &fakeCommentService{createErr: content.ErrCommentsDisabled}
+	response := commentRequest(t, service, http.MethodPost, "/api/posts/known-post/comments", `{"author_name":"a","body":"b"}`)
+	if response.Code != http.StatusNotFound {
+		t.Fatalf("status = %d, want 404", response.Code)
+	}
+	if response.Body.String() != "{\"error\":\"comments_disabled\"}\n" {
+		t.Fatalf("body = %q", response.Body.String())
 	}
 }
 

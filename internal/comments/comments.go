@@ -14,6 +14,7 @@ var (
 	ErrInvalidCursor = errors.New("invalid comment cursor")
 	ErrPostFull      = errors.New("post comment limit reached")
 	ErrNotFound      = errors.New("comment not found")
+	ErrUnavailable   = errors.New("comments unavailable")
 )
 
 type Status string
@@ -46,7 +47,7 @@ type Store interface {
 }
 
 type ContentRegistry interface {
-	RequirePublishedContent(ctx context.Context, slug string) error
+	RequireCommentsEnabled(ctx context.Context, slug string) error
 }
 
 type Limits struct {
@@ -68,7 +69,7 @@ func NewService(store Store, content ContentRegistry, limits Limits) *Service {
 }
 
 func (service *Service) Create(ctx context.Context, input CreateInput) (Comment, error) {
-	if err := service.content.RequirePublishedContent(ctx, input.PostSlug); err != nil {
+	if err := service.content.RequireCommentsEnabled(ctx, input.PostSlug); err != nil {
 		return Comment{}, err
 	}
 
@@ -98,7 +99,7 @@ func (service *Service) ListVisible(
 	if beforeID < 0 || limit < 0 || limit > service.limits.MaximumPageSize {
 		return nil, ErrInvalidCursor
 	}
-	if err := service.content.RequirePublishedContent(ctx, postSlug); err != nil {
+	if err := service.content.RequireCommentsEnabled(ctx, postSlug); err != nil {
 		return nil, err
 	}
 	if limit == 0 {

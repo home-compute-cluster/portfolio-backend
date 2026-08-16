@@ -19,6 +19,35 @@ import (
 
 const testPost = "building-a-homelab"
 
+func TestIntegrationCreateRejectsDisabledCommentsInsideTransaction(t *testing.T) {
+	pool := migratedPool(t)
+	ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
+	defer cancel()
+
+	if _, err := pool.Exec(ctx, `
+		UPDATE content_items SET comments_enabled = false WHERE slug = $1
+	`, testPost); err != nil {
+		t.Fatalf("disable comments: %v", err)
+	}
+
+	_, err := NewStore(pool).CreateVisibleIfUnderLimit(ctx, comments.CreateInput{
+		PostSlug:   testPost,
+		AuthorName: "visitor",
+		Body:       "must not be stored",
+	}, 10)
+	if !errors.Is(err, comments.ErrUnavailable) {
+		t.Fatalf("CreateVisibleIfUnderLimit() error = %v, want ErrUnavailable", err)
+	}
+
+	var count int
+	if err := pool.QueryRow(ctx, `SELECT count(*) FROM comments WHERE post_slug = $1`, testPost).Scan(&count); err != nil {
+		t.Fatalf("count comments: %v", err)
+	}
+	if count != 0 {
+		t.Fatalf("stored comments = %d, want 0", count)
+	}
+}
+
 func TestIntegrationCreateVisibleIfUnderLimitIsAtomic(t *testing.T) {
 	pool := migratedPool(t)
 	store := NewStore(pool)

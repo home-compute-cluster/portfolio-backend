@@ -43,6 +43,7 @@ build:
 	mkdir -p bin
 	$(GO) build -o bin/api ./cmd/api
 	$(GO) build -o bin/migrate ./cmd/migrate
+	$(GO) build -o bin/sync-content ./cmd/synccontent
 	$(GO) build -o bin/smoke ./cmd/smoke
 
 smoke:

@@ -1,7 +1,7 @@
 openapi: 3.1.0
 info:
   title: Packetcraft Backend API
-  version: 0.2.0
+  version: 0.3.0
   description: Dynamic interactions for registered packetcraft.dev blogs, projects, reviews, and future content kinds. The existing `/posts/{slug}` paths are retained for compatibility.
 servers:
   - url: /api
@@ -78,7 +78,7 @@ paths:
         "400":
           $ref: "#/components/responses/BadRequest"
         "404":
-          $ref: "#/components/responses/NotFound"
+          $ref: "#/components/responses/CommentsUnavailable"
     post:
       operationId: createPostComment
       summary: Publish a plain-text visitor comment on registered content
@@ -100,7 +100,7 @@ paths:
         "400":
           $ref: "#/components/responses/BadRequest"
         "404":
-          $ref: "#/components/responses/NotFound"
+          $ref: "#/components/responses/CommentsUnavailable"
         "409":
           description: The content item has reached its visible-comment limit.
           content:
@@ -291,6 +291,12 @@ components:
             $ref: "#/components/schemas/Error"
     NotFound:
       description: The requested resource does not exist.
+      content:
+        application/json:
+          schema:
+            $ref: "#/components/schemas/Error"
+    CommentsUnavailable:
+      description: The content does not exist, is not published, or has comments disabled by its frontend manifest.
       content:
         application/json:
           schema:
