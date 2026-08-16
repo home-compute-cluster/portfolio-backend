@@ -262,7 +262,7 @@ Added or completed:
 - hardened panic recovery to return the same non-leaking structured JSON error shape as other API failures
 - hardened Access verification to require Cloudflare application-token type and added bounded network-timeout and refresh-failure logging tests
 - pinned CI actions to immutable commits, added pinned Staticcheck and govulncheck releases, and added a high/critical container vulnerability scan
-- upgraded the repository/container toolchain from Go 1.26.4 to the security-fixed Go 1.26.5 and upgraded `golang.org/x/text` from vulnerable v0.29.0 to v0.40.0
+- upgraded the repository/container toolchain from Go 1.26.4 through the security-fixed Go 1.26.6 and upgraded `golang.org/x/text` from vulnerable v0.29.0 to v0.40.0
 - documented application, Access, abuse-control, logging, origin, and deployment security boundaries
 - added runbooks for database failure, migration failure, rollback, Tunnel failure, Access lockout/AUD rotation/JWKS failure, WAF false positives, visitor-key rotation, CNPG restore, and comment moderation
 

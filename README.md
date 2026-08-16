@@ -6,7 +6,7 @@ The implemented walking skeleton and feature slices provide typed configuration,
 
 ## Prerequisites
 
-- Go 1.26.4 or the version declared in `go.mod`
+- Go 1.26.6 or the version declared in `go.mod`
 - access to the development K3s cluster and `kubectl`
 - the existing CloudNativePG development cluster
 - Docker or another OCI-compatible builder for container builds
