@@ -131,7 +131,20 @@ Remove-Variable visitorKey
 ```
 
 Review only the encrypted SealedSecret output. Its template must create
-`portfolio-backend` in `portfolio` with the `VISITOR_HMAC_KEY` key.
+`portfolio-backend` in `portfolio` with the `VISITOR_HMAC_KEY` key. Add this
+annotation to the SealedSecret resource itself so Argo CD waits for it before
+running the migration hook or creating the Deployment:
+
+```yaml
+metadata:
+  annotations:
+    argocd.argoproj.io/sync-wave: "-2"
+```
+
+The annotation belongs on the SealedSecret's top-level `metadata`, not only on
+`spec.template.metadata`. Without the wave, a first rollout can briefly create
+an application pod before the Sealed Secrets controller has materialized the
+referenced Kubernetes Secret.
 
 ## 4. Finish Cloudflare and proxy trust
 

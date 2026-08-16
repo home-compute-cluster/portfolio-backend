@@ -245,6 +245,7 @@ Added or completed:
 - aligned the deployment reference with the live production namespace, the CNPG-generated `portfolio-db-app` connection URI, the current `site.packetcraft.dev` origin, and Argo CD migration ordering
 - added an ordered pre-apply runbook covering the GitOps layout, Sealed Secret creation, Access and proxy prerequisites, immutable image promotion, server-side dry runs, and the single Argo CD bootstrap command
 - identified the native `cloudflared` path on `deus`: K3s ServiceLB masquerades port-80 origin traffic, so Traefik must trust the stable `deus` pod CIDR (`10.42.0.0/24`) while the backend trusts the cluster pod network (`10.42.0.0/16`)
+- documented SealedSecret sync wave `-2` after the first live rollout exposed a race where the Deployment could start before the controller materialized `portfolio-backend`
 
 External rollout still required:
 
