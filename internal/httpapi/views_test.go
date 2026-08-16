@@ -11,6 +11,7 @@ import (
 
 	"github.com/home-compute-cluster/portfolio-backend/internal/content"
 	httpmiddleware "github.com/home-compute-cluster/portfolio-backend/internal/httpapi/middleware"
+	"github.com/home-compute-cluster/portfolio-backend/internal/platform/ratelimit"
 	"github.com/home-compute-cluster/portfolio-backend/internal/platform/visitor"
 )
 
@@ -33,6 +34,24 @@ func TestRecordViewReturns204WhenDeduplicated(t *testing.T) {
 	response := viewRequest(t, &fakeViewService{counted: false}, "/api/posts/known-post/view")
 	if response.Code != http.StatusNoContent {
 		t.Fatalf("status = %d, want 204", response.Code)
+	}
+}
+
+func TestRecordViewRateLimitBoundaryReturns429(t *testing.T) {
+	t.Parallel()
+
+	service := &fakeViewService{}
+	response := viewRequestWithLimiter(
+		t,
+		service,
+		denyingLimiter{},
+		"/api/posts/known-post/view",
+	)
+	if response.Code != http.StatusTooManyRequests {
+		t.Fatalf("status = %d, want 429", response.Code)
+	}
+	if service.slug != "" {
+		t.Fatal("rate-limited request reached view service")
 	}
 }
 
@@ -60,10 +79,20 @@ func TestRecordViewMapsErrorsWithoutLeaking(t *testing.T) {
 
 func viewRequest(t *testing.T, service *fakeViewService, target string) *httptest.ResponseRecorder {
 	t.Helper()
+	return viewRequestWithLimiter(t, service, nil, target)
+}
+
+func viewRequestWithLimiter(
+	t *testing.T,
+	service *fakeViewService,
+	limiter ratelimit.Limiter,
+	target string,
+) *httptest.ResponseRecorder {
+	t.Helper()
 	handler := NewViewHandler(
 		service,
 		visitor.NewIdentity([]byte("0123456789abcdef0123456789abcdef")),
-		nil,
+		limiter,
 		time.Second,
 		nil,
 	)

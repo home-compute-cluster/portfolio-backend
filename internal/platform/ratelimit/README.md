@@ -1,25 +1,24 @@
-# Rate-limiting assignment
+# Pod-local rate limiting
 
-Implement `AssignmentLimiter` as an in-memory, pod-local limiter. You may choose
-a fixed window, sliding window, or token bucket, provided the acceptance behavior
-remains clear and documented.
+`AssignmentLimiter` implements a concurrency-safe fixed window for each
+pseudonymous visitor hash. Comments, view recordings, and like-state changes use
+separate limiter instances and therefore do not consume one another's allowance.
 
-Requirements:
+The implementation deliberately has no cleanup goroutine. When a new visitor
+would exceed `maxKeys`, the limiter synchronously removes expired windows. If all
+retained entries are still active, the unseen visitor is denied rather than an
+active entry being evicted.
 
-- safe under concurrent requests
-- separate allowance per pseudonymous visitor hash
-- reject requests above the configured allowance
-- permit traffic again as time advances
-- retain no more than `maxKeys` visitor entries
-- do not start an untracked cleanup goroutine
-- document that restarts reset state and replicas multiply the effective limit
+Operational limits:
 
-Run the assignment suite with:
+- state belongs to one pod and resets when that pod restarts
+- multiple replicas multiply the effective allowance
+- `maxKeys` bounds each limiter independently, so three configured limiters may
+  retain up to three times that number of visitor keys per pod
+- Cloudflare edge controls supplement this limiter but do not replace it
+
+Run its focused concurrency and behavior suite with:
 
 ```powershell
 go test -race -tags assignment ./internal/platform/ratelimit
 ```
-
-The template is intentionally not constructed in `internal/app` until these
-tests pass. Once complete, construct separate comment, view, and like limiter
-instances and add their rate values to typed configuration.

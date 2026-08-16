@@ -6,7 +6,7 @@ The implemented walking skeleton and feature slices provide typed configuration,
 
 ## Prerequisites
 
-- Go 1.26.4 or the version declared in `go.mod`
+- Go 1.26.6 or the version declared in `go.mod`
 - access to the development K3s cluster and `kubectl`
 - the existing CloudNativePG development cluster
 - Docker or another OCI-compatible builder for container builds
@@ -55,7 +55,7 @@ GET  /api/posts/{slug}/stats
 
 Only slugs in the published content registry are accepted. Comments are plain text, newest-first, and cursor-paginated. Views use a rolling deduplication window. Likes use explicit idempotent desired-state operations, and stats expose only aggregate view and like totals. Comment listing, hiding, and unhiding are registered only as one Cloudflare Access-protected `/api/admin` route group; successful state changes write a minimal audit event in the same PostgreSQL transaction.
 
-The in-memory rate-limiting algorithm is the remaining Iteration 5 assignment. Its handler boundary and opt-in acceptance suite are present, but the permissive template is not wired into the API. Run `make test-rate-limit-assignment` while implementing it; do not treat comment, view, or like writes as fully hardened until that target passes and separate limiters are constructed in `internal/app`.
+Comment creation, view recording, and like-state changes use independent, per-visitor fixed-window limiters. Their allowances and per-limiter retention bound are configured by `RATE_COMMENTS_PER_MIN`, `RATE_READS_PER_MIN`, `RATE_LIKES_PER_MIN`, and `RATE_LIMIT_MAX_KEYS`. Limiter state is local to each pod, resets on restart, and is multiplied by the number of replicas; Cloudflare edge controls provide an additional abuse-control layer. Run `make test-rate-limit-assignment` for the focused race and behavior suite.
 
 ## Automated verification
 

@@ -18,6 +18,7 @@ type Config struct {
 	Security SecurityConfig
 	Views    ViewsConfig
 	Access   AccessConfig
+	Rates    RateLimitConfig
 }
 
 type HTTPConfig struct {
@@ -61,6 +62,15 @@ type AccessConfig struct {
 	TeamDomain string
 	Audience   string
 	AdminEmail string
+}
+
+// RateLimitConfig contains the per-visitor anonymous-write allowances and the
+// maximum number of visitor keys retained by each pod-local limiter.
+type RateLimitConfig struct {
+	CommentsPerMinute int
+	LikesPerMinute    int
+	ReadsPerMinute    int
+	MaxKeysPerLimiter int
 }
 
 const (
@@ -185,6 +195,23 @@ func Load() (Config, error) {
 	accessAudience := strings.TrimSpace(os.Getenv("CF_ACCESS_AUD"))
 	adminEmail := strings.ToLower(strings.TrimSpace(os.Getenv("ADMIN_EMAIL")))
 
+	commentsPerMinute, err := envPositiveInt("RATE_COMMENTS_PER_MIN", 5)
+	if err != nil {
+		return Config{}, err
+	}
+	likesPerMinute, err := envPositiveInt("RATE_LIKES_PER_MIN", 30)
+	if err != nil {
+		return Config{}, err
+	}
+	readsPerMinute, err := envPositiveInt("RATE_READS_PER_MIN", 60)
+	if err != nil {
+		return Config{}, err
+	}
+	maxKeysPerLimiter, err := envPositiveInt("RATE_LIMIT_MAX_KEYS", 10000)
+	if err != nil {
+		return Config{}, err
+	}
+
 	return Config{
 		HTTP: HTTPConfig{
 			Address:           envString("HTTP_ADDR", ":8080"),
@@ -221,6 +248,12 @@ func Load() (Config, error) {
 			TeamDomain: teamDomain,
 			Audience:   accessAudience,
 			AdminEmail: adminEmail,
+		},
+		Rates: RateLimitConfig{
+			CommentsPerMinute: commentsPerMinute,
+			ReadsPerMinute:    readsPerMinute,
+			LikesPerMinute:    likesPerMinute,
+			MaxKeysPerLimiter: maxKeysPerLimiter,
 		},
 	}, nil
 }

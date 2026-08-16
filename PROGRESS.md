@@ -110,7 +110,7 @@ Added or completed:
 
 ## Iteration 5 — Anonymous-write abuse controls
 
-Status: assignment pending
+Status: complete
 
 Added or completed:
 
@@ -118,15 +118,16 @@ Added or completed:
 - added centralized trusted-proxy parsing that ignores forwarded headers from untrusted peers and safely handles malformed chains
 - added a silent honeypot, request-size limits, strict validation, and an atomic per-post visible-comment cap
 - added fuzz coverage for forwarded-header parsing and concurrent PostgreSQL coverage for the post cap
-- added a rate-limiter interface at the HTTP boundary, a compile-ready assignment template, bounded-state requirements, and an opt-in race/concurrency acceptance suite
+- implemented a concurrency-safe per-visitor fixed-window limiter with bounded key retention and fail-closed invalid configuration
+- added independent typed allowances for comment creation, view recording, and like-state changes plus a per-limiter retention bound
+- constructed separate limiter instances at application startup so one operation cannot consume another operation's allowance
+- documented pod-local state, restart resets, replica multiplication, synchronous expired-key cleanup, and active-capacity rejection
+- added configuration validation, exact retention, expiry cleanup, active-capacity, invalid-configuration, concurrency, and HTTP `429` coverage
 
-Remaining assignment:
+Automated verification:
 
-- implement `internal/platform/ratelimit/AssignmentLimiter`
-- make `make test-rate-limit-assignment` pass
-- add typed comment/view/like allowance configuration and construct separate limiter instances in `internal/app`
-
-The placeholder limiter is permissive and is intentionally not wired into the application. Iteration 5 must not be reported as complete until the assignment is implemented.
+- `go test -race -tags assignment ./internal/platform/ratelimit`
+- handler tests confirm rejected comment, view, and like requests never reach their application services
 
 ## Iteration 6 — Comment moderation
 
@@ -251,17 +252,17 @@ These external changes are intentionally not represented as completed by this ap
 
 ## Iteration 12 — Production hardening
 
-Status: repository implementation complete; V1 completion still depends on the rate-limiter assignment and live infrastructure rollout
+Status: repository implementation complete; V1 completion still depends on live infrastructure rollout
 
 Added or completed:
 
 - added structured request completion logs with generated request ID, method, route template, status, duration, response bytes, and coarse error category
 - kept concrete slugs/IDs and sensitive headers out of request logs, and corrected feature error logs to use the generated Chi request ID instead of an untrusted request header
-- added explicit event categories for Access assertion failures, signing-key refresh failures, future rate-limit rejections, and moderation actions
+- added explicit event categories for Access assertion failures, signing-key refresh failures, rate-limit rejections, and moderation actions
 - hardened panic recovery to return the same non-leaking structured JSON error shape as other API failures
 - hardened Access verification to require Cloudflare application-token type and added bounded network-timeout and refresh-failure logging tests
 - pinned CI actions to immutable commits, added pinned Staticcheck and govulncheck releases, and added a high/critical container vulnerability scan
-- upgraded the repository/container toolchain from Go 1.26.4 to the security-fixed Go 1.26.5 and upgraded `golang.org/x/text` from vulnerable v0.29.0 to v0.40.0
+- upgraded the repository/container toolchain from Go 1.26.4 through the security-fixed Go 1.26.6 and upgraded `golang.org/x/text` from vulnerable v0.29.0 to v0.40.0
 - documented application, Access, abuse-control, logging, origin, and deployment security boundaries
 - added runbooks for database failure, migration failure, rollback, Tunnel failure, Access lockout/AUD rotation/JWKS failure, WAF false positives, visitor-key rotation, CNPG restore, and comment moderation
 
@@ -273,10 +274,9 @@ Automated verification completed:
 
 Remaining before V1 can be called complete:
 
-- implement and wire the bounded route-specific Go rate limiters and pass `make test-rate-limit-assignment`
 - apply and validate the GitOps, Cloudflare Access, Tunnel, and WAF configuration in their owning systems
 - let CI perform the Docker build and container scan because Docker is unavailable in the current local environment
 
 ## Next recommended work
 
-Finish the rate-limiter assignment, merge the stacked iteration branches in order, apply the external deployment configuration, and run the automated deployment smoke command.
+Merge the stacked iteration branches in order, apply the external deployment configuration, and run the automated deployment smoke command.

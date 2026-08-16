@@ -113,6 +113,8 @@ paths:
             application/json:
               schema:
                 $ref: "#/components/schemas/Error"
+        "429":
+          $ref: "#/components/responses/TooManyRequests"
   /posts/{slug}/view:
     parameters:
       - $ref: "#/components/parameters/PostSlug"
@@ -127,6 +129,8 @@ paths:
           $ref: "#/components/responses/BadRequest"
         "404":
           $ref: "#/components/responses/NotFound"
+        "429":
+          $ref: "#/components/responses/TooManyRequests"
   /posts/{slug}/like:
     parameters:
       - $ref: "#/components/parameters/PostSlug"
@@ -140,6 +144,8 @@ paths:
           $ref: "#/components/responses/BadRequest"
         "404":
           $ref: "#/components/responses/NotFound"
+        "429":
+          $ref: "#/components/responses/TooManyRequests"
     delete:
       operationId: unlikePost
       summary: Ensure the current visitor does not like the post
@@ -150,6 +156,8 @@ paths:
           $ref: "#/components/responses/BadRequest"
         "404":
           $ref: "#/components/responses/NotFound"
+        "429":
+          $ref: "#/components/responses/TooManyRequests"
   /posts/{slug}/stats:
     parameters:
       - $ref: "#/components/parameters/PostSlug"
@@ -288,6 +296,12 @@ components:
             $ref: "#/components/schemas/Error"
     Unauthorized:
       description: A valid Cloudflare Access administrator assertion is required.
+      content:
+        application/json:
+          schema:
+            $ref: "#/components/schemas/Error"
+    TooManyRequests:
+      description: The visitor has exhausted the configured allowance for this operation.
       content:
         application/json:
           schema:

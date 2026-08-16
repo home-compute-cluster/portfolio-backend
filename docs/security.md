@@ -1,6 +1,6 @@
 # Production security and reliability review
 
-This review records the V1 controls and their ownership. It does not replace the rate-limiter assignment or the live infrastructure review.
+This review records the V1 controls and their ownership. It does not replace the live infrastructure review.
 
 ## Application boundaries
 
@@ -20,7 +20,7 @@ This review records the V1 controls and their ownership. It does not replace the
 
 ## Public abuse controls
 
-The current layers are strict payload validation, honeypot behavior, trusted-proxy parsing, pseudonymous visitor HMACs, rolling view deduplication, unique likes, atomic comment caps, PostgreSQL constraints, and planned Cloudflare WAF rules. The route-specific Go limiter remains the developer assignment and is intentionally not represented as active. Its implementation must bound key storage and document that state is per pod and resets on restart.
+The current layers are strict payload validation, honeypot behavior, trusted-proxy parsing, pseudonymous visitor HMACs, rolling view deduplication, unique likes, atomic comment caps, PostgreSQL constraints, route-specific Go rate limiting, and planned Cloudflare WAF rules. Comment creation, view recording, and like-state changes have independent fixed-window allowances. Each limiter bounds retained visitor keys; its state is per pod, resets on restart, and is multiplied by the number of replicas. When the bound contains only active entries, an unseen visitor is denied until an entry expires.
 
 Cloudflare WAF is an early filter, not a correctness boundary. Database constraints and application transactions remain authoritative. Edge thresholds should be tuned from observed legitimate traffic and checked for verified-bot impact.
 
