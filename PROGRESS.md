@@ -231,7 +231,7 @@ Automated verification:
 
 ## Iteration 11 — Deployment integration
 
-Status: repository implementation complete; live GitOps and Cloudflare rollout pending
+Status: initial production rollout healthy; GitOps convergence, admin edge, and full smoke verification pending
 
 Added or completed:
 
@@ -247,14 +247,17 @@ Added or completed:
 - identified the native `cloudflared` path on `deus`: K3s ServiceLB masquerades port-80 origin traffic, so Traefik must trust the stable `deus` pod CIDR (`10.42.0.0/24`) while the backend trusts the cluster pod network (`10.42.0.0/16`)
 - documented SealedSecret sync wave `-2` after the first live rollout exposed a race where the Deployment could start before the controller materialized `portfolio-backend`
 - changed the intended Access edge to the first-level `admin.packetcraft.dev` hostname after live TLS verification showed that Universal SSL does not cover nested `admin.site.packetcraft.dev`
+- deployed image `7e3512d`, completed the production migration Job, unsealed the visitor key, and reached a stable `1/1` backend pod with zero restarts
+- made the GHCR package anonymously pullable and applied Traefik forwarded-header trust for the `deus` ServiceLB pod CIDR
+- verified the public edge returns valid HTTP 200 responses for health, database readiness, post stats, and bounded comment listing
 
-External rollout still required:
+External closeout still required:
 
-- copy the application contract into the homelab GitOps repository with real image, Service, ConfigMap, Sealed Secret, IngressRoute, and migration Job values
-- add `CONFIG_REPO_TOKEN` to the backend repository and make the published GHCR package pullable by the cluster
-- configure the `admin.packetcraft.dev` deny-by-default Access application for the exact administrator identity and strong authentication
-- apply the documented `10.42.0.0/24` forwarded-header trust to Traefik in the homelab GitOps repository
-- configure plan-appropriate Cloudflare WAF rate-limit rules for public writes, then run the smoke command from a trusted runner
+- set `TRUSTED_PROXY_CIDRS` to the string `10.42.0.0/16`, trigger a Git-owned pod-template rollout, and return the Argo CD application to `Synced`
+- add SealedSecret sync wave `-2` in the homelab GitOps repository
+- move the Tunnel route, Access application, and live admin IngressRoute from the TLS-incompatible nested hostname to `admin.packetcraft.dev`
+- configure plan-appropriate Cloudflare WAF rate-limit and `/api/*` cache-bypass rules
+- run the complete authenticated deployment smoke workflow and retain its successful result as deployment evidence
 
 These external changes are intentionally not represented as completed by this application repository.
 
