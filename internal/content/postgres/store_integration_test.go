@@ -2,6 +2,7 @@ package postgres
 
 import (
 	"context"
+	"errors"
 	"io"
 	"log/slog"
 	"os"
@@ -61,6 +62,9 @@ func TestIntegrationSyncSnapshotUpsertsArchivesAndIsIdempotent(t *testing.T) {
 	defer cancel()
 
 	store := NewStore(pool)
+	if _, err := store.SyncSnapshot(ctx, content.Snapshot{}); !errors.Is(err, content.ErrInvalidManifest) {
+		t.Fatalf("invalid SyncSnapshot() error = %v, want ErrInvalidManifest", err)
+	}
 	snapshot := content.Snapshot{
 		SchemaVersion: content.ManifestSchemaVersion,
 		Mode:          content.ManifestModeFull,

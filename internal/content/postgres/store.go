@@ -43,6 +43,12 @@ func (store *Store) ContentState(ctx context.Context, slug string) (content.Stat
 // that disappeared. The advisory lock and transaction make concurrent jobs
 // serialize, while managed_by prevents one source from taking another's slug.
 func (store *Store) SyncSnapshot(ctx context.Context, snapshot content.Snapshot) (content.SyncResult, error) {
+	// Keep the database mutation boundary safe even if a future trusted caller
+	// accidentally bypasses SyncService.
+	if err := content.ValidateSnapshot(snapshot); err != nil {
+		return content.SyncResult{}, err
+	}
+
 	tx, err := store.pool.BeginTx(ctx, pgx.TxOptions{})
 	if err != nil {
 		return content.SyncResult{}, fmt.Errorf("begin content sync: %w", err)
