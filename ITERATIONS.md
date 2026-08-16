@@ -22,13 +22,17 @@ The initial viable backend must support:
 - application health and readiness
 - PostgreSQL connectivity
 - database migrations
+- static post identity synchronization
 - public post comments
 - comment moderation
 - post view counts
 - post likes
 - single-admin authentication
-- admin-managed project content
 - deployment into the existing K3s / ArgoCD / Traefik / CloudNativePG environment
+
+The frontend remains the source of truth for authored content.
+
+Blog posts, project descriptions, reviews, and reasonable static assets remain in the Astro/Git content workflow. The backend exists only for dynamic functionality that the static site cannot provide cleanly.
 
 The frontend is the only intended API consumer.
 
@@ -70,9 +74,6 @@ Every iteration must follow these rules.
 12. Stop and document blockers when an external dependency genuinely prevents completion.
 13. Do not silently change architecture established in `AGENTS.md`.
 14. Significant architecture changes require an ADR.
-15. Automate acceptance wherever technically practical; do not make routine browser, curl, or database inspection a required human step.
-
-Examples that describe what a browser or curl client can observe define external behavior. They must be demonstrated by automated HTTP or integration tests unless the behavior cannot reasonably be automated and the exception is documented.
 
 ---
 
@@ -82,27 +83,28 @@ Examples that describe what a browser or curl client can observe define external
 Iteration 0  Repository baseline
 Iteration 1  Application walking skeleton
 Iteration 2  Database migrations and integration-test foundation
-Iteration 3  Content identity
+Iteration 3  Static post identity synchronization
 Iteration 4  Public comments
 Iteration 5  Comment abuse controls
-Iteration 6  Comment moderation
+Iteration 6  Comment moderation foundation
 Iteration 7  Views
 Iteration 8  Likes and public stats
-Iteration 9  Admin authentication
-Iteration 10 Admin project management
+Iteration 9  Cloudflare Access admin authentication
+Iteration 10 Authenticated moderation and audit
 Iteration 11 Deployment integration
 Iteration 12 Production hardening
 
 ---------------- MVP / V1 COMPLETE ----------------
 
-Extension 1   Observability improvements
+Extension 1   Better observability
 Extension 2   Email notifications
 Extension 3   Comment replies
 Extension 4   Search
-Extension 5   Multi-admin support
+Extension 5   Multiple administrators
 Extension 6   Horizontal scaling
 Extension 7   Richer moderation
-Extension 8   API versioning, only if needed
+Extension 8   Web-based content management
+Extension 9   API versioning, only if needed
 ```
 
 ---
@@ -238,7 +240,7 @@ Support the following development model:
 ```text
 local Go API
     ↓
-127.0.0.1:15432
+127.0.0.1:5433
     ↓ kubectl port-forward
 CNPG development -rw Service
     ↓
@@ -248,7 +250,7 @@ PostgreSQL
 Example:
 
 ```powershell
-kubectl -n portfolio-dev port-forward service/portfolio-db-dev-rw 15432:5432
+kubectl -n portfolio-dev port-forward service/portfolio-db-dev-rw 5433:5432
 ```
 
 The backend must not contain special logic for the port-forward.
@@ -342,44 +344,42 @@ CI can run database-dependent tests
 
 ---
 
-# Iteration 3 — Content identity
+# Iteration 3 — Static post identity synchronization
 
 ## Goal
 
-Give the backend an authoritative list of valid content identities without moving static article bodies into PostgreSQL.
+Give the backend a runtime list of valid post identities without moving authored content into PostgreSQL.
+
+The frontend/Git repository remains the source of truth for blog content.
 
 ## Deliverables
 
-Create a lightweight content registry.
+Create a lightweight post registry.
 
-Example conceptual model:
+Minimum conceptual model:
 
 ```text
 slug
-kind
 status
-created_at
-updated_at
-```
-
-Possible kinds:
-
-```text
-post
-project
+synced_at
 ```
 
 Possible status:
 
 ```text
-draft
 published
 archived
 ```
 
-The static Astro frontend remains responsible for blog content.
+Do not store the post body, MDX, Markdown, excerpt, media, or revision history in PostgreSQL as part of V1.
 
-The backend uses the registry only to prevent arbitrary slugs from accumulating comments, views, and likes.
+The registry exists only so the backend can answer:
+
+```text
+does this post slug exist and accept runtime interaction?
+```
+
+This prevents arbitrary slugs from accumulating comments, views, and likes.
 
 ## Synchronization strategy
 
@@ -389,10 +389,14 @@ Possible approaches:
 
 - generated manifest consumed during deployment
 - explicit sync command
-- admin registration
+- build artifact containing known slugs
 - migration-seeded entries during early development
 
+Prefer a deployment-time sync that is deterministic and easy to test.
+
 Do not build a distributed content synchronization system.
+
+Do not turn this iteration into a CMS.
 
 ## Tests
 
@@ -402,17 +406,17 @@ Verify:
 - known published post is accepted
 - invalid slug syntax is rejected
 - excessive slug length is rejected
-- draft/archived behavior is explicit
+- archived behavior is explicit
+- synchronization is deterministic
 
 ## Acceptance criteria
 
 ```text
 backend can determine whether a post slug is valid
-anonymous write endpoints can depend on this check later
-no static article body is duplicated into PostgreSQL
+comments, views, and likes can depend on this check
+Astro/Git remains the authored-content source of truth
+no blog body is duplicated into PostgreSQL
 ```
-
----
 
 # Iteration 4 — Public comments
 
@@ -515,7 +519,7 @@ Test:
 
 ## Acceptance criteria
 
-Automated HTTP tests demonstrate that a client can:
+A real browser or curl client can:
 
 ```text
 create comment
@@ -630,11 +634,11 @@ proxy-header trust rules are explicit and tested
 
 ---
 
-# Iteration 6 — Comment moderation
+# Iteration 6 — Comment moderation foundation
 
 ## Goal
 
-Allow the administrator to remove inappropriate comments from public display without destroying data.
+Add the moderation data model and API behavior needed for later authenticated administration.
 
 ## API
 
@@ -646,9 +650,15 @@ POST /api/admin/comments/{id}/hide
 POST /api/admin/comments/{id}/unhide
 ```
 
-At this iteration, temporary development-only protection may be used only if admin authentication has not yet been implemented, but the code must be structured so the final admin middleware is inserted at the `/api/admin` route group.
+At this stage, these routes may exist behind a development-only guard if Iteration 9 has not yet been completed.
 
-Do not expose these routes publicly in production without Iteration 9.
+They must not be exposed publicly in production before Iteration 9.
+
+Structure the route group so that final admin authentication can be applied once at:
+
+```text
+/api/admin/*
+```
 
 ## Behavior
 
@@ -657,12 +667,13 @@ Do not expose these routes publicly in production without Iteration 9.
 - hidden comments remain queryable by admin
 - public endpoints never show hidden comments
 - moderation operations should be idempotent where practical
+- admin comment lists are bounded and paginated
 
 ## Audit foundation
 
-Introduce an admin audit-event abstraction or table if needed for later auth and project management.
+Prepare an audit-event abstraction or table if useful, but do not overbuild the final audit system before authentication exists.
 
-Do not store full comment bodies in the audit event.
+Do not store full comment bodies in audit records.
 
 ## Tests
 
@@ -674,12 +685,11 @@ Verify:
 - unknown comment
 - public visibility changes correctly
 - moderation list is bounded/paginated
+- production configuration does not expose unauthenticated moderation routes
 
 ## Acceptance criteria
 
-Moderation works correctly and does not permanently destroy comment data.
-
----
+Moderation semantics are correct, reversible, and ready to be secured by Iteration 9.
 
 # Iteration 7 — Views
 
@@ -823,213 +833,284 @@ The website can display stable likes and views for each valid post.
 
 ---
 
-# Iteration 9 — Admin authentication
+# Iteration 9 — Cloudflare Access admin authentication
 
 ## Goal
 
-Secure all administrator endpoints using a simple single-admin session model.
+Protect administrator operations without building an application-owned password, login, JWT-issuing, or session subsystem.
 
-## Scope
+Use Cloudflare Access as the primary administrator authentication boundary and validate the Access assertion again inside the Go backend before any `/api/admin/*` handler can run.
 
-There is one administrator.
+Normal visitors remain unauthenticated. Cloudflare Access applies only to the administrator surface.
 
-Do not implement:
+## Architecture
 
-- OAuth
-- social login
-- JWT refresh tokens
-- registration
-- password reset workflows
-- user roles
+Preferred layout:
 
-unless requirements change.
+```text
+PUBLIC
 
-## API
+packetcraft.dev
+    ↓
+Cloudflare
+    ↓
+Traefik
+    ├── /*       -> Astro/nginx
+    └── /api/*   -> Go public API
 
-Implement:
 
-```http
-POST /api/admin/login
-POST /api/admin/logout
+ADMIN
+
+site-admin.packetcraft.dev
+    ↓
+Cloudflare Access
+    ↓
+Traefik
+    ↓
+Go /api/admin/*
+    ↓
+Access JWT validation middleware
+    ↓
+admin handler
 ```
 
-Protect:
+The preferred Cloudflare Access application is the entire:
+
+```text
+site-admin.packetcraft.dev
+```
+
+rather than exposing an application-owned login page on the public site.
+
+## Cloudflare Access policy
+
+Configure the self-hosted Access application as deny-by-default.
+
+Allow only the administrator identity.
+
+Minimum policy intent:
+
+```text
+Action:   Allow
+Include:  exact administrator email identity
+```
+
+Where supported by the configured identity provider, require MFA or a strong authentication method such as a passkey.
+
+Optional device-level restrictions such as mTLS may be added later if there is a concrete requirement to restrict administration to provisioned devices.
+
+Do not use a Cloudflare Access `Bypass` rule for the administrator surface.
+
+## Backend validation
+
+Cloudflare Access sends the application assertion in:
+
+```http
+Cf-Access-Jwt-Assertion: <JWT>
+```
+
+Every request reaching `/api/admin/*` must pass a single route-group middleware that validates the assertion.
+
+The validator must verify at least:
+
+```text
+JWT signature
+expected RS256 signing key
+issuer (iss) == configured Cloudflare Access team domain
+audience (aud) contains the configured Access application AUD tag
+expiration and other relevant temporal claims
+expected administrator identity, when an identity claim is used as defense in depth
+```
+
+Do not merely decode the JWT.
+
+Do not trust the presence of the header without cryptographic verification.
+
+## Signing-key handling
+
+Fetch Cloudflare Access public signing keys from the team-domain Access certificates/JWKS endpoint rather than hard-coding a certificate.
+
+The verifier must:
+
+- cache usable signing keys
+- select the correct key using the JWT `kid`
+- support Cloudflare signing-key rotation
+- refresh keys when necessary
+- fail closed when a token cannot be validated
+- use sensible network timeouts when refreshing keys
+
+Do not fetch signing keys on every admin request.
+
+## Configuration
+
+Expected application configuration:
+
+```text
+CF_ACCESS_TEAM_DOMAIN
+CF_ACCESS_AUD
+ADMIN_EMAIL
+```
+
+Example team-domain shape:
+
+```text
+https://<team-name>.cloudflareaccess.com
+```
+
+`CF_ACCESS_TEAM_DOMAIN` and `CF_ACCESS_AUD` are configuration values, not application passwords.
+
+Do not introduce:
+
+```text
+ADMIN_PASSWORD_HASH
+admin_sessions
+/api/admin/login
+/api/admin/logout
+application-issued admin JWTs
+refresh tokens
+```
+
+for V1.
+
+## Middleware boundary
+
+Protect the entire route group:
 
 ```text
 /api/admin/*
 ```
 
-using route-group middleware.
+with one Access-validation middleware.
 
-## Credential storage
+Handlers must receive a validated administrator identity from request context rather than re-reading or trusting raw Access headers independently.
 
-Use an Argon2id password hash provided through secret configuration.
-
-Do not store the single administrator password in PostgreSQL.
-
-## Sessions
-
-Use:
-
-- cryptographically random opaque token
-- server-side session record
-- hash of token persisted in PostgreSQL
-- expiration time
-- secure cookie
-
-Cookie properties:
-
-```text
-HttpOnly
-Secure
-SameSite=Strict
-Path=/
-Domain omitted
-```
-
-Prefer a `__Host-` cookie name.
-
-## Cross-site protection
-
-Add an additional protection for admin writes, such as:
-
-- `Origin` validation
-- Fetch Metadata validation
-
-Do not treat `SameSite` as the only defense.
-
-## Login abuse control
-
-Apply a strict login-attempt rate limit.
-
-Do not reveal whether a specific password-processing stage failed.
-
-## Audit
-
-Record appropriate events:
-
-```text
-login success
-login failure category if safe
-logout
-comment hide
-comment unhide
-```
-
-Do not audit passwords, session tokens, or full sensitive request bodies.
+Missing or invalid Access assertions must never reach an admin handler.
 
 ## Tests
 
 Verify:
 
-- correct password
-- incorrect password
-- session cookie flags
-- missing session
-- invalid session
-- expired session
-- logout
-- repeated logout
-- admin routes inaccessible without auth
-- cross-site request rejection
-- login rate limiting
+- missing `Cf-Access-Jwt-Assertion` is rejected
+- invalid signature is rejected
+- wrong issuer is rejected
+- wrong audience is rejected
+- expired token is rejected
+- unexpected administrator identity is rejected when identity checking is enabled
+- valid token reaches the protected handler
+- signing-key rotation / changed `kid` can be handled
+- JWKS/key-refresh failure fails closed
+- every `/api/admin/*` route uses the middleware
+- no application-owned admin login/logout endpoint exists
+
+Use generated test signing keys or a local test JWKS server. Tests must not depend on live Cloudflare authentication.
 
 ## Acceptance criteria
 
-No `/api/admin/*` operational endpoint is reachable without a valid session.
+```text
+Cloudflare Access is the administrator authentication authority
+Go independently validates the Access JWT before admin handlers run
+only the configured administrator identity is authorized
+no backend password/session subsystem exists
+public visitors do not receive or need authentication tokens
+```
 
 ---
 
-# Iteration 10 — Admin project management
+# Iteration 10 — Authenticated moderation and audit
 
 ## Goal
 
-Allow project content to be created and maintained without rebuilding backend code.
+Finish the administrator-facing backend around moderation and operational visibility using the validated Cloudflare Access identity from Iteration 9.
+
+This is not a CMS or general user-account system.
 
 ## API
 
-Implement:
+Required:
 
 ```http
-GET    /api/projects
-GET    /api/projects/{slug}
-
-POST   /api/admin/projects
-PUT    /api/admin/projects/{slug}
-DELETE /api/admin/projects/{slug}
+GET  /api/admin/comments
+POST /api/admin/comments/{id}/hide
+POST /api/admin/comments/{id}/unhide
 ```
 
-If irreversible deletion is not required, prefer archive semantics.
+Optional if useful:
 
-## Project model
+```http
+GET /api/admin/stats
+```
 
-Suggested fields:
+Do not add the stats endpoint unless it is actually useful to the admin frontend.
+
+## Authentication and authorization
+
+All endpoints in this iteration must be protected by the Iteration 9 Access middleware.
+
+Do not perform independent authentication checks inside each handler.
+
+The handler may consume a validated admin principal from request context for auditing, but must not trust raw `Cf-Access-*` headers directly.
+
+If an admin route is accidentally reachable through another hostname or ingress path, the Go middleware must still reject requests without a cryptographically valid Access assertion.
+
+## Audit events
+
+Implement a minimal audit trail for important administrative mutations.
+
+Expected events include:
 
 ```text
-slug
-title
-summary
-body
-status
-version
-created_at
-updated_at
+comment.hide
+comment.unhide
 ```
 
-Suggested status:
+Access login/logout events are owned by Cloudflare Access and do not need to be duplicated as application login/logout records.
+
+Audit records may include:
 
 ```text
-draft
-published
-archived
+request ID
+validated admin actor identifier
+resource type
+resource ID
+previous state
+new state
+timestamp
 ```
 
-## Optimistic concurrency
+Prefer a stable validated actor identifier. Do not persist more identity information than is operationally useful.
 
-Use a version column.
-
-Updates must identify the expected version.
-
-A stale update should return:
+Do not store:
 
 ```text
-409 Conflict
+Access JWTs
+CF_Authorization cookies
+full comment bodies
+raw sensitive request payloads
 ```
 
-rather than silently overwrite newer content.
+## Pagination
 
-## Markdown
+Admin comment feeds must be bounded.
 
-Treat Markdown rendering as a security boundary.
-
-Prefer disabling raw embedded HTML.
-
-If HTML is permitted, sanitize output deliberately.
-
-## Public behavior
-
-Only published projects should appear publicly.
-
-Draft and archived content must remain available to authenticated administration as appropriate.
+Prefer cursor pagination.
 
 ## Tests
 
 Verify:
 
-- create
-- update
-- stale update conflict
-- publish
-- archive/delete behavior
-- public listing
-- public single-project lookup
-- draft hidden publicly
-- unknown slug
-- auth requirements
+- missing/invalid Access assertion cannot reach moderation handlers
+- valid Access identity can list comments
+- hide works
+- unhide works
+- repeated moderation is safe
+- audit event is recorded for mutations
+- audit event identifies the validated actor without storing the Access token
+- audit event contains no sensitive payload
+- pagination is bounded
 
 ## Acceptance criteria
 
-Project data can be managed from the admin API safely and appears correctly in the public API.
+The configured administrator can reach the protected moderation API through Cloudflare Access, moderate comments safely, and leave a minimal application audit trail without the backend owning administrator credentials or sessions.
 
 ---
 
@@ -1037,11 +1118,11 @@ Project data can be managed from the admin API safely and appears correctly in t
 
 ## Goal
 
-Deploy the backend into the existing GitOps environment.
+Deploy the backend into the existing GitOps environment and establish the production Cloudflare trust boundaries for both public and administrator traffic.
 
 ## Kubernetes resources
 
-Expected resources include:
+Expected Kubernetes resources include:
 
 ```text
 Deployment
@@ -1054,19 +1135,87 @@ migration Job
 
 The CNPG cluster is owned separately by the homelab infrastructure configuration.
 
-## Routing
+Cloudflare Access and WAF/rate-limit configuration are Cloudflare-side controls and should have a clearly documented owner. They do not belong in PostgreSQL or application migrations.
 
-Traefik owns the split:
+## Public routing
+
+Traefik continues to own the public split:
 
 ```text
 Host(packetcraft.dev) && PathPrefix(/api)
-    → portfolio-backend
+    -> portfolio-backend
 
 Host(packetcraft.dev)
-    → portfolio-frontend
+    -> portfolio-frontend
 ```
 
 The frontend nginx container must not proxy `/api`.
+
+Public routes remain intentionally unauthenticated.
+
+## Administrator routing
+
+Create or configure:
+
+```text
+site-admin.packetcraft.dev
+```
+
+behind Cloudflare Access.
+
+The preferred flow is:
+
+```text
+site-admin.packetcraft.dev
+    -> Cloudflare Access
+    -> Cloudflare Tunnel
+    -> Traefik
+    -> portfolio-backend /api/admin/*
+```
+
+If an admin frontend is added, the entire admin hostname should remain protected by the same Access application.
+
+Do not create a public application login page.
+
+Where practical, configure routing so the administrator hostname is the intended ingress path for admin operations. Regardless of routing, the Go Access-JWT middleware remains mandatory as defense in depth.
+
+## Cloudflare Access production configuration
+
+Configure and verify:
+
+```text
+self-hosted Access application for site-admin.packetcraft.dev
+deny-by-default behavior
+Allow policy for exact administrator identity
+MFA/strong-auth requirement where supported
+Application Audience (AUD) value
+team domain
+Access session duration appropriate for administration
+```
+
+The backend receives the corresponding team domain and AUD through configuration.
+
+## Public API edge rate limiting
+
+Cloudflare should be the first abuse-control layer for public API traffic.
+
+Configure WAF rate-limiting rules for public API paths where the current Cloudflare plan supports the required matching fields.
+
+Prioritize public writes:
+
+```text
+comments
+likes/unlikes
+views
+```
+
+and apply a broader, more generous limit to public reads when useful.
+
+Cloudflare edge rate limiting is not the sole correctness boundary. Keep the Go-side limiter and database invariants from earlier iterations as backstops because edge rate limiting may allow some excess requests through before mitigation activates and feature availability differs by Cloudflare plan.
+
+If the current Cloudflare plan cannot distinguish HTTP methods in a rate-limit expression, use the best path-based/coarse edge rule available and keep method-specific limits in the Go application.
+
+Do not put Cloudflare Access in front of the normal public API solely to prevent spam.
 
 ## Database
 
@@ -1085,6 +1234,8 @@ readinessProbe -> /api/readyz
 ```
 
 Database failure affects readiness only.
+
+Health and readiness endpoints used by Kubernetes must not accidentally be placed behind the administrator Access policy.
 
 ## Container expectations
 
@@ -1118,30 +1269,51 @@ migration
 backend rollout
 ```
 
-## Tests
+## Deployment smoke tests
 
-At minimum run an automated deployment smoke test:
+Verify the public surface:
 
 ```text
 health
 readiness
-public project read
 comment create/list
 view
-like
-admin login
-admin moderation
+like/unlike
+public stats
 ```
+
+Verify the administrator surface:
+
+```text
+admin hostname is protected by Cloudflare Access
+unapproved identity is denied by Access
+approved administrator identity reaches the application
+missing/forged Access assertion is rejected by Go
+admin comment list works
+admin hide works
+admin unhide works
+```
+
+Verify abuse controls:
+
+```text
+Cloudflare edge rate-limit rule is active
+Go-side rate limit remains active behind it
+normal frontend usage is not blocked by the configured thresholds
+```
+
+The smoke test must not depend on project editing, CMS behavior, or database-backed authored content.
 
 ## Acceptance criteria
 
-The backend is reachable through:
-
 ```text
-https://packetcraft.dev/api/...
+public API is reachable through packetcraft.dev/api/*
+admin surface is behind Cloudflare Access
+Go validates Access assertions independently
+public abuse traffic is rate-limited at Cloudflare before reaching the origin where possible
+application-side limits and DB constraints remain effective backstops
+all core dynamic functionality works from the real frontend
 ```
-
-and all core functionality works from the real frontend.
 
 ---
 
@@ -1149,7 +1321,7 @@ and all core functionality works from the real frontend.
 
 ## Goal
 
-Make the completed MVP operationally trustworthy.
+Make the completed dynamic backend operationally trustworthy without expanding its product scope.
 
 ## CI
 
@@ -1168,6 +1340,41 @@ docker build
 container vulnerability scan
 ```
 
+## Application hardening
+
+Review:
+
+- request timeouts
+- graceful shutdown
+- bounded request bodies
+- structured error responses
+- panic recovery
+- cancellation behavior
+- database query deadlines
+- bounded in-memory rate-limiter state
+
+## Cloudflare Access verifier hardening
+
+Review and test:
+
+```text
+Cf-Access-Jwt-Assertion extraction
+JWT signature verification
+issuer validation
+audience validation
+expiration / temporal claim validation
+administrator identity validation
+JWKS/signing-key caching
+unknown kid refresh behavior
+Cloudflare signing-key rotation
+network timeout while refreshing keys
+fail-closed behavior
+```
+
+Do not hard-code a Cloudflare signing certificate in the binary or Kubernetes manifests.
+
+Do not accept a JWT merely because it contains the expected email claim.
+
 ## Logging
 
 Ensure structured request logging includes:
@@ -1182,19 +1389,30 @@ response bytes
 error category
 ```
 
+Security-relevant logs may include event categories such as:
+
+```text
+access_assertion_missing
+access_assertion_invalid
+access_key_refresh_failed
+rate_limit_rejected
+moderation_action
+```
+
 Do not log:
 
 ```text
-passwords
-cookies
-raw session tokens
+Cf-Access-Jwt-Assertion values
+CF_Authorization cookies
+visitor HMAC keys
 comment bodies
-project bodies
 raw IP addresses
 raw user agents
-complete database URL
-HMAC keys
+complete database URLs
+secrets
 ```
+
+Avoid logging administrator email addresses unless operationally necessary; prefer a stable validated actor identifier in application audit records.
 
 ## Database
 
@@ -1205,21 +1423,57 @@ Review:
 - pool size
 - migration behavior
 - backup behavior
-- recovery procedure
+- restore procedure
+- concurrency-sensitive queries
 
-## Security
+There is no V1 `admin_sessions` table to maintain or clean up.
 
-Review:
+## Public API abuse controls
 
-- TLS
-- proxy trust
-- forwarded-header handling
-- admin authentication
-- cookie flags
-- cross-site protections
-- request-size limits
-- rate limits
-- dependency vulnerabilities
+Review Cloudflare and application controls together:
+
+```text
+Cloudflare WAF/rate-limiting rules
+Go route-specific rate limits
+honeypot behavior
+request body limits
+visitor HMAC behavior
+view deduplication
+like uniqueness
+comment caps
+PostgreSQL constraints
+```
+
+Tune edge thresholds using observed legitimate traffic rather than assuming the initial values are permanently correct.
+
+Confirm that search-engine/verified-bot traffic is not unintentionally harmed by broad public-read limits.
+
+## Network and origin security
+
+Verify:
+
+- origin is reached through the intended Cloudflare Tunnel path
+- forwarded headers are trusted only through configured proxy boundaries
+- public traffic cannot bypass intended ingress controls
+- admin hostname remains Access-protected
+- no alternate public route bypasses Go admin middleware
+- TLS configuration is appropriate at each hop
+
+## Observability
+
+Ensure the system provides enough information to diagnose:
+
+```text
+request failures
+database readiness failures
+Cloudflare Access assertion failures
+Access signing-key refresh failures
+Cloudflare edge rate-limit events
+application rate-limit rejections
+moderation actions
+```
+
+Metrics are optional unless logs are insufficient.
 
 ## Runbooks
 
@@ -1229,53 +1483,66 @@ Document at least:
 database unavailable
 failed migration
 backend rollback
-admin credential rotation
+Cloudflare Tunnel unavailable
+Cloudflare Access administrator lockout
+Access application/AUD recreation or rotation
+Access signing-key/JWKS validation failure
+edge rate-limit false positive
 visitor HMAC key rotation
 CNPG restore
 comment moderation
 ```
 
+The administrator credential lifecycle is primarily owned by the configured Cloudflare Access identity provider rather than by the Go application.
+
+Do not add CMS publishing, media-storage, revision-recovery, or content-editor runbooks to V1.
+
 ## Acceptance criteria
 
-The service can be deployed, observed, recovered, and maintained without relying on undocumented knowledge.
-
----
+```text
+Access authentication can fail safely without exposing admin handlers
+Cloudflare signing-key rotation does not require rebuilding the backend
+public abuse controls exist at both edge and application layers
+Cloudflare or ingress misconfiguration cannot silently turn an admin handler into an unauthenticated handler
+service can be deployed, observed, recovered, and maintained from documented procedures
+```
 
 # MVP / V1 completion definition
 
 The backend is considered a viable V1 when Iterations 0 through 12 are complete.
 
-The V1 product must support the following end-to-end experience.
+The V1 product supports dynamic interaction around an otherwise static portfolio.
 
 ## Visitor
 
 A visitor can:
 
 ```text
-open a post
+open a statically generated post
 read visible comments
 write a comment
 record a view
 like or unlike a post
 see aggregate views and likes
-view published projects
 ```
+
+Authored blog posts, projects, reviews, and static assets remain owned by the Astro/Git content workflow.
 
 ## Administrator
 
 The administrator can:
 
 ```text
-log in
-log out
+authenticate through Cloudflare Access
+reach the private admin surface
 see comments
 hide comments
 restore comments
-create projects
-edit projects
-publish projects
-archive/delete projects according to the chosen policy
 ```
+
+The Go backend does not own an administrator password or login/session subsystem in V1.
+
+The administrator does not need a backend CMS in V1.
 
 ## Operations
 
@@ -1285,13 +1552,15 @@ The system must:
 deploy through GitOps
 use CNPG PostgreSQL
 run migrations predictably
+protect the admin surface with Cloudflare Access
+validate Cloudflare Access JWT assertions in Go
+rate-limit public API abuse at the Cloudflare edge and application layer
 survive PostgreSQL outages without liveness restart loops
 shut down gracefully
-avoid leaking secrets in logs
+avoid leaking secrets or Access tokens in logs
 have automated tests for important invariants
+preserve the static Astro/nginx frontend architecture
 ```
-
----
 
 # Post-MVP extensions
 
@@ -1316,7 +1585,7 @@ Possible work:
 - database query duration metrics
 - rate-limit counters
 - moderation counters
-- admin login failure counters
+- Cloudflare Access assertion failure counters
 - dashboards
 - alerting
 
@@ -1384,24 +1653,23 @@ Do not create arbitrary recursive behavior without pagination and moderation rul
 
 ## Trigger
 
-Add when the amount of project or blog content makes navigation difficult.
+Add when the amount of authored content makes navigation difficult.
 
-Start with PostgreSQL full-text search.
+Because authored content remains in Astro/Git for V1, prefer a static or build-time search index first.
 
-Do not introduce Elasticsearch/OpenSearch until PostgreSQL search is proven inadequate.
-
-Potential searchable content:
+Possible approaches include:
 
 ```text
-project title
-project summary
-project body
-post metadata
+Astro-generated search index
+client-side static search
+build-time metadata index
 ```
 
-Visitor comments should probably not be indexed in public search by default.
+Only use PostgreSQL full-text search for content that actually lives in PostgreSQL.
 
----
+Do not introduce Elasticsearch/OpenSearch unless the simpler static approach is proven inadequate.
+
+Visitor comments should not be indexed in public search by default.
 
 # Extension 5 — Multiple administrators
 
@@ -1445,9 +1713,9 @@ pod disruption behavior
 graceful rollout behavior
 ```
 
-Database-backed sessions already support multiple API replicas.
+Cloudflare Access remains the admin authentication authority across multiple API replicas.
 
-The in-memory rate limiter does not provide a global limit.
+The in-memory application rate limiter does not provide a global public-traffic limit.
 
 Possible later solutions include:
 
@@ -1492,7 +1760,38 @@ Revisit only when observed abuse demonstrates the need.
 
 ---
 
-# Extension 8 — API versioning
+# Extension 8 — Web-based content management
+
+## Trigger
+
+Add only when editing authored content through Git/MDX becomes a real maintenance burden.
+
+This extension may introduce:
+
+```text
+web-based post editor
+draft/publish workflow
+database-backed authored content
+revision history
+media uploads
+media storage
+publish hooks or frontend rebuild hooks
+```
+
+Do not let this extension influence V1 database or deployment design unless it is explicitly being implemented.
+
+Before implementation, decide deliberately whether authored content should:
+
+1. remain Git-backed with an editor that commits content, or
+2. move to PostgreSQL and be fetched/rendered from the backend.
+
+If large media storage becomes part of the requirement, evaluate object storage at that time rather than adding it preemptively.
+
+This extension should have its own ADR because it changes content ownership and deployment semantics.
+
+---
+
+# Extension 9 — API versioning
 
 ## Trigger
 

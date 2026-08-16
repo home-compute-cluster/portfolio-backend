@@ -37,6 +37,7 @@ The goal is a small, production-quality **modular monolith**. Prefer explicit, b
 15. Treat security, observability, testing, deployment, and migrations as part of application design.
 16. Do not add infrastructure because it might be useful someday.
 17. Optimize for maintainability and correctness before cleverness.
+18. Code should be commented for the developer to understand intuitively. Minimally, a Godoc for any non-trivial function or methods should be implemented
 
 ## Target repository layout
 
