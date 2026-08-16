@@ -159,6 +159,9 @@ func (handler *CommentHandler) handleError(response http.ResponseWriter, request
 		writeError(response, http.StatusBadRequest, "invalid_request")
 	case errors.Is(err, content.ErrNotFound):
 		writeError(response, http.StatusNotFound, "post_not_found")
+	case errors.Is(err, content.ErrCommentsDisabled),
+		errors.Is(err, comments.ErrUnavailable):
+		writeError(response, http.StatusNotFound, "comments_disabled")
 	case errors.Is(err, comments.ErrPostFull):
 		writeError(response, http.StatusConflict, "comment_limit_reached")
 	default:

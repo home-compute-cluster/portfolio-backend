@@ -312,6 +312,45 @@ Automated verification completed:
 - `go run honnef.co/go/tools/cmd/staticcheck@v0.7.0 ./...`
 - `go build ./cmd/api ./cmd/migrate ./cmd/smoke`
 
-## Next recommended work
+## Automated frontend content registry
 
-Promote this revision through the normal GitOps workflow so migration `000007` completes before the new API pod rolls out. The existing frontend comment sections will then work for the newly registered project and review slugs without a frontend API change.
+Status: backend implementation complete; frontend generation and GitOps rollout remain external
+
+Added or completed:
+
+- added forward-only migration `000008_content_manifest_sync.sql` with explicit `comments_enabled` policy and `managed_by` source ownership
+- added a strict, size-bounded, versioned JSON full-snapshot contract and machine-readable JSON Schema
+- added the one-shot `cmd/synccontent` command and `/sync-content` container binary; no public registration endpoint was introduced
+- implemented transactional, advisory-lock-serialized upsert and archival, with ownership-conflict rollback and no deletion of interaction history
+- made unchanged snapshots idempotent and made omitted source-owned items archived rather than deleted
+- rejected empty snapshots, delta mode, unknown JSON fields, invalid identities/states/revisions, omitted comment policy, duplicates, and cross-source slug takeover
+- kept views, likes, unlikes, and stats available for every published content kind while requiring both publication and `comments_enabled` for comment reads and writes
+- rechecked comment policy under a PostgreSQL `FOR SHARE` row lock inside the comment creation transaction so a concurrent policy sync cannot race the insert
+- added the stable `comments_disabled` public error without changing the existing `/api/posts/{slug}` compatibility routes
+- added unit, HTTP, and PostgreSQL integration coverage for decoding, validation, service gates, sync idempotence, archival, ownership rollback, schema constraints, and disabled-comment persistence
+- added the reference generated ConfigMap and content-sync Argo CD hook between migration and Deployment waves
+- documented the frontend generator contract, Kustomize handoff, automated cross-application rollout ordering, and the decision in ADR 0004
+
+Automated verification completed locally:
+
+- `go test -skip '^TestIntegration' ./...`
+- `go test -race ./...`
+- `go test -race -tags assignment ./internal/platform/ratelimit`
+- `go vet ./...`
+- `go run honnef.co/go/tools/cmd/staticcheck@v0.7.0 ./...`
+- `go build ./cmd/api ./cmd/migrate ./cmd/synccontent ./cmd/smoke`
+- `go mod tidy` with no module-file diff
+
+The real-PostgreSQL integration suite could not run locally because
+`127.0.0.1:15432` actively refused the connection; the development port-forward
+was not running. CI remains configured to run every integration case against its
+PostgreSQL service. Docker/container scanning also remains CI-owned because
+Docker is unavailable in the current local environment.
+
+External rollout still required:
+
+- release the backend image and let migration `000008` complete first
+- add `comments: z.boolean().default(false)` to all frontend collection schemas and explicitly enable it in content that should accept comments
+- generate the complete, deterministic manifest from Astro collections with the frontend Git SHA and validate it in frontend CI
+- add the generated ConfigMap and content-sync Job to `homelab-cicd-config`
+- automate registry-sync success before promotion of the corresponding frontend image

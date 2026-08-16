@@ -37,7 +37,7 @@ func TestValidSlug(t *testing.T) {
 func TestRequirePublishedContent(t *testing.T) {
 	t.Parallel()
 
-	service := NewService(stubStore{exists: true})
+	service := NewService(stubStore{state: State{Published: true}})
 	if err := service.RequirePublishedContent(context.Background(), "known-content"); err != nil {
 		t.Fatalf("RequirePublishedContent() error = %v", err)
 	}
@@ -53,10 +53,34 @@ func TestRequirePublishedContent(t *testing.T) {
 }
 
 type stubStore struct {
-	exists bool
-	err    error
+	state State
+	err   error
 }
 
-func (store stubStore) PublishedContentExists(context.Context, string) (bool, error) {
-	return store.exists, store.err
+func (store stubStore) ContentState(context.Context, string) (State, error) {
+	return store.state, store.err
+}
+
+func TestRequireCommentsEnabled(t *testing.T) {
+	t.Parallel()
+
+	tests := []struct {
+		name  string
+		state State
+		want  error
+	}{
+		{name: "enabled", state: State{Published: true, CommentsEnabled: true}},
+		{name: "disabled", state: State{Published: true}, want: ErrCommentsDisabled},
+		{name: "unpublished", state: State{CommentsEnabled: true}, want: ErrNotFound},
+	}
+	for _, test := range tests {
+		t.Run(test.name, func(t *testing.T) {
+			t.Parallel()
+			service := NewService(stubStore{state: test.state})
+			err := service.RequireCommentsEnabled(context.Background(), "known-content")
+			if !errors.Is(err, test.want) {
+				t.Fatalf("RequireCommentsEnabled() error = %v, want %v", err, test.want)
+			}
+		})
+	}
 }

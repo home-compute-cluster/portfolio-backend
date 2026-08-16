@@ -43,6 +43,8 @@ Create this structure in `homelab-cicd-config`:
 ```text
 apps/portfolio/backend/
   configmap.yaml
+  content-registry.json
+  content-sync-job.yaml
   deployment.yaml
   ingressroute.yaml
   kustomization.yaml
@@ -64,9 +66,17 @@ resources:
   - configmap.yaml
   - sealed-secret.yaml
   - migration-job.yaml
+  - content-sync-job.yaml
   - deployment.yaml
   - service.yaml
   - ingressroute.yaml
+configMapGenerator:
+  - name: portfolio-content-registry
+    files:
+      - content-registry.json=content-registry.json
+generatorOptions:
+  annotations:
+    argocd.argoproj.io/sync-wave: "-2"
 images:
   - name: ghcr.io/home-compute-cluster/portfolio-backend
     newName: ghcr.io/home-compute-cluster/portfolio-backend
@@ -252,6 +262,7 @@ kubectl apply -f argocd/portfolio-backend.yaml
 ```
 
 That command creates the Argo CD application. Argo CD then applies configuration
-at wave `-2`, runs the migration hook at wave `-1`, and rolls out the API at wave
-`0`. Post-deployment acceptance is the automated `cmd/smoke` workflow described
+at wave `-2`, runs the migration hook at wave `-1`, synchronizes the generated
+Astro content registry at wave `0`, and rolls out the API at wave `1`.
+Post-deployment acceptance is the automated `cmd/smoke` workflow described
 in `scripts/README.md`, not manual endpoint probing.

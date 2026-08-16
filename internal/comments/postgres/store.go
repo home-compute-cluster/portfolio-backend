@@ -44,6 +44,23 @@ func (store *Store) CreateVisibleIfUnderLimit(
 		return comments.Comment{}, fmt.Errorf("lock post comments: %w", err)
 	}
 
+	// Lock the registry row while checking policy. A concurrent manifest sync
+	// can therefore linearize either before or after this comment, but cannot
+	// disable comments between this check and the insert.
+	var commentsAvailable bool
+	err = tx.QueryRow(ctx, `
+		SELECT status = 'published' AND comments_enabled
+		FROM content_items
+		WHERE slug = $1
+		FOR SHARE
+	`, input.PostSlug).Scan(&commentsAvailable)
+	if errors.Is(err, pgx.ErrNoRows) || (err == nil && !commentsAvailable) {
+		return comments.Comment{}, comments.ErrUnavailable
+	}
+	if err != nil {
+		return comments.Comment{}, fmt.Errorf("check comment availability: %w", err)
+	}
+
 	var visibleCount int
 	if err := tx.QueryRow(ctx, `
 		SELECT count(*)

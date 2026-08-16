@@ -38,8 +38,8 @@ func TestIntegrationEmptyDatabaseMigratesDeterministically(t *testing.T) {
 	if err != nil {
 		t.Fatalf("read migration state: %v", err)
 	}
-	if count != 7 || version != 7 || checksumLength != 32 {
-		t.Fatalf("migration state = count %d, version %d, checksum bytes %d, want 6 migrations through version 6", count, version, checksumLength)
+	if count != 8 || version != 8 || checksumLength != 32 {
+		t.Fatalf("migration state = count %d, version %d, checksum bytes %d, want 8 migrations through version 8", count, version, checksumLength)
 	}
 }
 

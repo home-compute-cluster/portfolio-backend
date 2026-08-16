@@ -53,7 +53,7 @@ DELETE /api/posts/{slug}/like
 GET  /api/posts/{slug}/stats
 ```
 
-The `/api/posts/{slug}` prefix is retained as the stable interaction API, but its slug may identify any explicitly registered, published content item. The registry currently includes blogs, projects, and reviews; its constrained kind field can represent future Astro collections without a schema change. Registering a new kind does not authorize arbitrary URLs because every content slug must still be added deliberately. Comments are plain text, newest-first, and cursor-paginated. Views use a rolling deduplication window. Likes use explicit idempotent desired-state operations, and stats expose only aggregate view and like totals. Comment listing, hiding, and unhiding are registered only as one Cloudflare Access-protected `/api/admin` route group; successful state changes write a minimal audit event in the same PostgreSQL transaction.
+The `/api/posts/{slug}` prefix is retained as the stable interaction API, but its slug may identify any explicitly registered, published content item. The registry currently includes blogs, projects, and reviews; its constrained kind field can represent future Astro collections without a schema change. A deployment-time full snapshot generated from Astro registers new identities and archives removed ones without storing authored bodies in PostgreSQL. Anonymous requests cannot create registry rows. Comments are plain text, newest-first, cursor-paginated, and available only when the synchronized `comments_enabled` policy is true. Views use a rolling deduplication window. Likes use explicit idempotent desired-state operations, and stats expose only aggregate view and like totals. Comment listing, hiding, and unhiding are registered only as one Cloudflare Access-protected `/api/admin` route group; successful state changes write a minimal audit event in the same PostgreSQL transaction.
 
 Comment creation, view recording, and like-state changes use independent, per-visitor fixed-window limiters. Their allowances and per-limiter retention bound are configured by `RATE_COMMENTS_PER_MIN`, `RATE_READS_PER_MIN`, `RATE_LIKES_PER_MIN`, and `RATE_LIMIT_MAX_KEYS`. Limiter state is local to each pod, resets on restart, and is multiplied by the number of replicas; Cloudflare edge controls provide an additional abuse-control layer. Run `make test-rate-limit-assignment` for the focused race and behavior suite.
 
@@ -70,14 +70,14 @@ go fmt ./...
 go vet ./...
 go test ./...
 go test -race ./...
-go build ./cmd/api ./cmd/migrate
+go build ./cmd/api ./cmd/migrate ./cmd/synccontent ./cmd/smoke
 ```
 
 On a system with Make, `make ci` runs checks that do not require a local PostgreSQL instance. `make test-integration` uses `TEST_DATABASE_URL`; CI always supplies its own PostgreSQL service automatically.
 
 ## Database migrations
 
-Versioned SQL lives in `migrations/`. The API never migrates on startup. The same container image includes `/migrate` and `/migrations` so GitOps can run one revision-specific migration Job before rolling out API pods. See [`migrations/README.md`](migrations/README.md) for the file convention and guarantees.
+Versioned SQL lives in `migrations/`. The API never migrates on startup. The same container image includes `/migrate`, `/sync-content`, and `/migrations` so GitOps can run one revision-specific migration Job followed by one content snapshot Job before rolling out API pods. See [`migrations/README.md`](migrations/README.md) for the migration guarantees and [`docs/content-registry.md`](docs/content-registry.md) for the frontend/GitOps handoff.
 
 ## Deployment model
 

@@ -9,12 +9,19 @@ import (
 const MaxSlugChars = 100
 
 var (
-	ErrInvalidSlug = errors.New("invalid content slug")
-	ErrNotFound    = errors.New("content not found")
+	ErrInvalidSlug      = errors.New("invalid content slug")
+	ErrNotFound         = errors.New("content not found")
+	ErrCommentsDisabled = errors.New("comments disabled")
 )
 
+// State contains the registry policy needed by dynamic content features.
+type State struct {
+	Published       bool
+	CommentsEnabled bool
+}
+
 type Store interface {
-	PublishedContentExists(ctx context.Context, slug string) (bool, error)
+	ContentState(ctx context.Context, slug string) (State, error)
 }
 
 type Service struct {
@@ -32,12 +39,33 @@ func (service *Service) RequirePublishedContent(ctx context.Context, slug string
 		return ErrInvalidSlug
 	}
 
-	exists, err := service.store.PublishedContentExists(ctx, slug)
+	state, err := service.store.ContentState(ctx, slug)
 	if err != nil {
 		return err
 	}
-	if !exists {
+	if !state.Published {
 		return ErrNotFound
+	}
+
+	return nil
+}
+
+// RequireCommentsEnabled verifies that slug is published and its source
+// content explicitly enables the public comment feature.
+func (service *Service) RequireCommentsEnabled(ctx context.Context, slug string) error {
+	if !ValidSlug(slug) {
+		return ErrInvalidSlug
+	}
+
+	state, err := service.store.ContentState(ctx, slug)
+	if err != nil {
+		return err
+	}
+	if !state.Published {
+		return ErrNotFound
+	}
+	if !state.CommentsEnabled {
+		return ErrCommentsDisabled
 	}
 
 	return nil
