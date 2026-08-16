@@ -12,8 +12,8 @@ Supply the short-lived Access assertion through a restricted temporary file so i
 
 ```text
 go run ./cmd/smoke \
-  -public-url https://packetcraft.dev \
-  -admin-origin-url http://portfolio-backend.portfolio-dev.svc.cluster.local \
+  -public-url https://site.packetcraft.dev \
+  -admin-origin-url http://portfolio-backend.portfolio.svc.cluster.local \
   -admin-edge-url https://admin.site.packetcraft.dev \
   -post-slug building-a-homelab \
   -access-assertion-file /run/secrets/cf-access-assertion

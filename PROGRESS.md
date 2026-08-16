@@ -241,11 +241,16 @@ Added or completed:
 - added a standard-library deployment smoke command covering probes, public stats/writes, comment create/list, Go rejection of missing and forged assertions, authenticated moderation, and optional unauthenticated Access-edge rejection
 - made the smoke workflow leave its generated comment hidden and ensured it never prints response bodies or the Access assertion
 - added deterministic `httptest` coverage for the smoke workflow and fail-closed admin-origin detection
+- added a post-CI release job that publishes immutable SHA-tagged backend images to GHCR and promotes the same tag into `BarneyLaw/homelab-cicd-config`
+- aligned the deployment reference with the live production namespace, the CNPG-generated `portfolio-db-app` connection URI, the current `site.packetcraft.dev` origin, and Argo CD migration ordering
+- added an ordered pre-apply runbook covering the GitOps layout, Sealed Secret creation, Access and proxy prerequisites, immutable image promotion, server-side dry runs, and the single Argo CD bootstrap command
 
 External rollout still required:
 
 - copy the application contract into the homelab GitOps repository with real image, Service, ConfigMap, Sealed Secret, IngressRoute, and migration Job values
+- add `CONFIG_REPO_TOKEN` to the backend repository and make the published GHCR package pullable by the cluster
 - configure the `admin.site.packetcraft.dev` deny-by-default Access application for the exact administrator identity and strong authentication
+- configure Traefik to trust forwarded headers only from the actual cloudflared connector source addresses
 - configure plan-appropriate Cloudflare WAF rate-limit rules for public writes, then run the smoke command from a trusted runner
 
 These external changes are intentionally not represented as completed by this application repository.
