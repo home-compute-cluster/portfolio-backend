@@ -246,12 +246,13 @@ Added or completed:
 - added an ordered pre-apply runbook covering the GitOps layout, Sealed Secret creation, Access and proxy prerequisites, immutable image promotion, server-side dry runs, and the single Argo CD bootstrap command
 - identified the native `cloudflared` path on `deus`: K3s ServiceLB masquerades port-80 origin traffic, so Traefik must trust the stable `deus` pod CIDR (`10.42.0.0/24`) while the backend trusts the cluster pod network (`10.42.0.0/16`)
 - documented SealedSecret sync wave `-2` after the first live rollout exposed a race where the Deployment could start before the controller materialized `portfolio-backend`
+- changed the intended Access edge to the first-level `admin.packetcraft.dev` hostname after live TLS verification showed that Universal SSL does not cover nested `admin.site.packetcraft.dev`
 
 External rollout still required:
 
 - copy the application contract into the homelab GitOps repository with real image, Service, ConfigMap, Sealed Secret, IngressRoute, and migration Job values
 - add `CONFIG_REPO_TOKEN` to the backend repository and make the published GHCR package pullable by the cluster
-- configure the `admin.site.packetcraft.dev` deny-by-default Access application for the exact administrator identity and strong authentication
+- configure the `admin.packetcraft.dev` deny-by-default Access application for the exact administrator identity and strong authentication
 - apply the documented `10.42.0.0/24` forwarded-header trust to Traefik in the homelab GitOps repository
 - configure plan-appropriate Cloudflare WAF rate-limit rules for public writes, then run the smoke command from a trusted runner
 

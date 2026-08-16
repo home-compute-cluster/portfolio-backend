@@ -16,7 +16,10 @@ The following were confirmed against the live cluster on 2026-08-16:
 - the Traefik pod network is within `10.42.0.0/16`
 - the four published frontend post slugs match migration `000002`
 - `site.packetcraft.dev` resolves and serves the current frontend
-- `packetcraft.dev` and `admin.site.packetcraft.dev` do not yet resolve
+- `packetcraft.dev` and `admin.packetcraft.dev` do not yet resolve
+- the abandoned nested name `admin.site.packetcraft.dev` resolves but cannot
+  complete edge TLS with the zone's Universal SSL certificate, which covers
+  only first-level subdomains
 
 Recheck these facts if deployment happens after an infrastructure change.
 
@@ -155,7 +158,7 @@ Before the API starts, replace the ConfigMap placeholders with:
 - the exact allowed administrator email
 - `TRUSTED_PROXY_CIDRS=10.42.0.0/16` for the Traefik-to-backend hop
 
-Create `admin.site.packetcraft.dev` on the same Tunnel and protect the entire
+Create `admin.packetcraft.dev` on the same Tunnel and protect the entire
 hostname with one deny-by-default Access application. Allow only the intended
 administrator identity and require strong authentication. Never add a Bypass
 policy.
