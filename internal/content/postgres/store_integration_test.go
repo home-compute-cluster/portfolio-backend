@@ -63,6 +63,7 @@ func TestIntegrationSyncSnapshotUpsertsArchivesAndIsIdempotent(t *testing.T) {
 	store := NewStore(pool)
 	snapshot := content.Snapshot{
 		SchemaVersion: content.ManifestSchemaVersion,
+		Mode:          content.ManifestModeFull,
 		Source:        "portfolio-site",
 		Revision:      "0123456789abcdef0123456789abcdef01234567",
 		Items: []content.Item{
@@ -118,6 +119,7 @@ func TestIntegrationSyncSnapshotRejectsAnotherSourcesSlugAndRollsBack(t *testing
 	store := NewStore(pool)
 	_, err := store.SyncSnapshot(ctx, content.Snapshot{
 		SchemaVersion: content.ManifestSchemaVersion,
+		Mode:          content.ManifestModeFull,
 		Source:        "portfolio-site",
 		Revision:      "0123456789abcdef0123456789abcdef01234567",
 		Items: []content.Item{

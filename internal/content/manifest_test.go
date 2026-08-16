@@ -14,6 +14,7 @@ func TestReadManifestRequiresExplicitValidFullSnapshot(t *testing.T) {
 
 	manifest := `{
 		"schema_version": 1,
+		"mode": "full",
 		"source": "portfolio-site",
 		"revision": "` + testRevision + `",
 		"items": [{
@@ -40,7 +41,7 @@ func TestReadManifestRequiresExplicitValidFullSnapshot(t *testing.T) {
 		"trailing value": manifest + `{}`,
 	}
 	// Replace the empty case directly to keep it syntactically valid.
-	tests["empty snapshot"] = `{"schema_version":1,"source":"portfolio-site","revision":"` + testRevision + `","items":[]}`
+	tests["empty snapshot"] = `{"schema_version":1,"mode":"full","source":"portfolio-site","revision":"` + testRevision + `","items":[]}`
 	for name, value := range tests {
 		t.Run(name, func(t *testing.T) {
 			t.Parallel()

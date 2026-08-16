@@ -12,6 +12,7 @@ import (
 
 const (
 	ManifestSchemaVersion = 1
+	ManifestModeFull      = "full"
 	MaxManifestBytes      = 1 << 20
 	MaxManifestItems      = 10_000
 	MaxKindChars          = 50
@@ -42,6 +43,7 @@ type Item struct {
 // omitted from a valid snapshot are archived by the synchronizer.
 type Snapshot struct {
 	SchemaVersion int    `json:"schema_version"`
+	Mode          string `json:"mode"`
 	Source        string `json:"source"`
 	Revision      string `json:"revision"`
 	Items         []Item `json:"items"`
@@ -96,6 +98,7 @@ func ReadManifest(reader io.Reader) (Snapshot, error) {
 	}
 	var wire struct {
 		SchemaVersion int        `json:"schema_version"`
+		Mode          string     `json:"mode"`
 		Source        string     `json:"source"`
 		Revision      string     `json:"revision"`
 		Items         []wireItem `json:"items"`
@@ -115,6 +118,7 @@ func ReadManifest(reader io.Reader) (Snapshot, error) {
 
 	snapshot := Snapshot{
 		SchemaVersion: wire.SchemaVersion,
+		Mode:          wire.Mode,
 		Source:        wire.Source,
 		Revision:      wire.Revision,
 		Items:         make([]Item, len(wire.Items)),
@@ -142,6 +146,9 @@ func ReadManifest(reader io.Reader) (Snapshot, error) {
 func ValidateSnapshot(snapshot Snapshot) error {
 	if snapshot.SchemaVersion != ManifestSchemaVersion {
 		return fmt.Errorf("%w: schema_version must be %d", ErrInvalidManifest, ManifestSchemaVersion)
+	}
+	if snapshot.Mode != ManifestModeFull {
+		return fmt.Errorf("%w: mode must be %q", ErrInvalidManifest, ManifestModeFull)
 	}
 	if !validIdentifier(snapshot.Source, MaxSourceChars, true) {
 		return fmt.Errorf("%w: invalid source", ErrInvalidManifest)

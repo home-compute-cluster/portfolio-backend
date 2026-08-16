@@ -4,10 +4,13 @@
   "title": "packetcraft.dev content registry snapshot",
   "type": "object",
   "additionalProperties": false,
-  "required": ["schema_version", "source", "revision", "items"],
+  "required": ["schema_version", "mode", "source", "revision", "items"],
   "properties": {
     "schema_version": {
       "const": 1
+    },
+    "mode": {
+      "const": "full"
     },
     "source": {
       "const": "portfolio-site"
