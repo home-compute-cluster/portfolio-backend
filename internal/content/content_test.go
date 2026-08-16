@@ -34,20 +34,20 @@ func TestValidSlug(t *testing.T) {
 	}
 }
 
-func TestRequirePublishedPost(t *testing.T) {
+func TestRequirePublishedContent(t *testing.T) {
 	t.Parallel()
 
 	service := NewService(stubStore{exists: true})
-	if err := service.RequirePublishedPost(context.Background(), "known-post"); err != nil {
-		t.Fatalf("RequirePublishedPost() error = %v", err)
+	if err := service.RequirePublishedContent(context.Background(), "known-content"); err != nil {
+		t.Fatalf("RequirePublishedContent() error = %v", err)
 	}
 
 	service = NewService(stubStore{})
-	if err := service.RequirePublishedPost(context.Background(), "unknown-post"); !errors.Is(err, ErrNotFound) {
-		t.Fatalf("unknown post error = %v, want ErrNotFound", err)
+	if err := service.RequirePublishedContent(context.Background(), "unknown-content"); !errors.Is(err, ErrNotFound) {
+		t.Fatalf("unknown content error = %v, want ErrNotFound", err)
 	}
 
-	if err := service.RequirePublishedPost(context.Background(), "Not Valid"); !errors.Is(err, ErrInvalidSlug) {
+	if err := service.RequirePublishedContent(context.Background(), "Not Valid"); !errors.Is(err, ErrInvalidSlug) {
 		t.Fatalf("invalid slug error = %v, want ErrInvalidSlug", err)
 	}
 }
@@ -57,6 +57,6 @@ type stubStore struct {
 	err    error
 }
 
-func (store stubStore) PublishedPostExists(context.Context, string) (bool, error) {
+func (store stubStore) PublishedContentExists(context.Context, string) (bool, error) {
 	return store.exists, store.err
 }

@@ -46,7 +46,7 @@ type Store interface {
 }
 
 type ContentRegistry interface {
-	RequirePublishedPost(ctx context.Context, slug string) error
+	RequirePublishedContent(ctx context.Context, slug string) error
 }
 
 type Limits struct {
@@ -68,7 +68,7 @@ func NewService(store Store, content ContentRegistry, limits Limits) *Service {
 }
 
 func (service *Service) Create(ctx context.Context, input CreateInput) (Comment, error) {
-	if err := service.content.RequirePublishedPost(ctx, input.PostSlug); err != nil {
+	if err := service.content.RequirePublishedContent(ctx, input.PostSlug); err != nil {
 		return Comment{}, err
 	}
 
@@ -98,7 +98,7 @@ func (service *Service) ListVisible(
 	if beforeID < 0 || limit < 0 || limit > service.limits.MaximumPageSize {
 		return nil, ErrInvalidCursor
 	}
-	if err := service.content.RequirePublishedPost(ctx, postSlug); err != nil {
+	if err := service.content.RequirePublishedContent(ctx, postSlug); err != nil {
 		return nil, err
 	}
 	if limit == 0 {

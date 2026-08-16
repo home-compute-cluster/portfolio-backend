@@ -19,25 +19,25 @@ func NewLikeService(store LikeStore, content ContentRegistry) *LikeService {
 	return &LikeService{store: store, content: content}
 }
 
-// Like ensures the visitor likes the published post and reports whether storage changed.
+// Like ensures the visitor likes the published content and reports whether storage changed.
 func (service *LikeService) Like(
 	ctx context.Context,
 	postSlug string,
 	visitorHash [32]byte,
 ) (bool, error) {
-	if err := service.content.RequirePublishedPost(ctx, postSlug); err != nil {
+	if err := service.content.RequirePublishedContent(ctx, postSlug); err != nil {
 		return false, err
 	}
 	return service.store.AddLike(ctx, postSlug, visitorHash)
 }
 
-// Unlike ensures the visitor does not like the published post and reports whether storage changed.
+// Unlike ensures the visitor does not like the published content and reports whether storage changed.
 func (service *LikeService) Unlike(
 	ctx context.Context,
 	postSlug string,
 	visitorHash [32]byte,
 ) (bool, error) {
-	if err := service.content.RequirePublishedPost(ctx, postSlug); err != nil {
+	if err := service.content.RequirePublishedContent(ctx, postSlug); err != nil {
 		return false, err
 	}
 	return service.store.RemoveLike(ctx, postSlug, visitorHash)

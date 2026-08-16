@@ -14,7 +14,7 @@ import (
 	"github.com/jackc/pgx/v5/pgxpool"
 )
 
-func TestIntegrationPublishedPostExistsHonorsKindAndPublicationState(t *testing.T) {
+func TestIntegrationPublishedContentExistsHonorsRegistryAndPublicationState(t *testing.T) {
 	pool := migratedPool(t)
 	ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
 	defer cancel()
@@ -23,26 +23,33 @@ func TestIntegrationPublishedPostExistsHonorsKindAndPublicationState(t *testing.
 		INSERT INTO content_items (slug, kind, status) VALUES
 			('draft-post', 'post', 'draft'),
 			('archived-post', 'post', 'archived'),
-			('published-project', 'project', 'published')
+			('published-future-kind', 'essay', 'published')
 	`); err != nil {
 		t.Fatalf("seed content states: %v", err)
 	}
 
 	store := NewStore(pool)
 	tests := map[string]bool{
-		"building-a-homelab": true,
-		"missing-post":       false,
-		"draft-post":         false,
-		"archived-post":      false,
-		"published-project":  false,
+		"building-a-homelab":    true,
+		"k3s-cluster":           true,
+		"lan-drop":              true,
+		"obsync":                true,
+		"relic-overlay":         true,
+		"cs2105":                true,
+		"i7-9700k":              true,
+		"warframe":              true,
+		"published-future-kind": true,
+		"missing-content":       false,
+		"draft-post":            false,
+		"archived-post":         false,
 	}
 	for slug, want := range tests {
-		got, err := store.PublishedPostExists(ctx, slug)
+		got, err := store.PublishedContentExists(ctx, slug)
 		if err != nil {
-			t.Fatalf("PublishedPostExists(%q): %v", slug, err)
+			t.Fatalf("PublishedContentExists(%q): %v", slug, err)
 		}
 		if got != want {
-			t.Fatalf("PublishedPostExists(%q) = %t, want %t", slug, got, want)
+			t.Fatalf("PublishedContentExists(%q) = %t, want %t", slug, got, want)
 		}
 	}
 }
@@ -56,7 +63,8 @@ func TestIntegrationContentRegistryConstraintsRejectInvalidRows(t *testing.T) {
 		slug, kind, status string
 	}{
 		{"Invalid Slug", "post", "published"},
-		{"valid-slug", "article", "published"},
+		{"valid-slug", "Invalid Kind", "published"},
+		{"valid-slug", "", "published"},
 		{"valid-slug", "post", "deleted"},
 	}
 	for _, row := range invalidRows {

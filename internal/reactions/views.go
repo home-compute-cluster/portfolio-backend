@@ -16,7 +16,7 @@ type ViewStore interface {
 }
 
 type ContentRegistry interface {
-	RequirePublishedPost(ctx context.Context, slug string) error
+	RequirePublishedContent(ctx context.Context, slug string) error
 }
 
 type Clock interface {
@@ -49,7 +49,7 @@ func (service *ViewService) Record(
 	postSlug string,
 	visitorHash [32]byte,
 ) (bool, error) {
-	if err := service.content.RequirePublishedPost(ctx, postSlug); err != nil {
+	if err := service.content.RequirePublishedContent(ctx, postSlug); err != nil {
 		return false, err
 	}
 	return service.store.RecordView(

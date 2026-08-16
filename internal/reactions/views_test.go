@@ -23,7 +23,7 @@ func TestRecordUsesClockAndRollingWindow(t *testing.T) {
 
 type acceptingContent struct{}
 
-func (acceptingContent) RequirePublishedPost(context.Context, string) error { return nil }
+func (acceptingContent) RequirePublishedContent(context.Context, string) error { return nil }
 
 type fixedClock struct{ now time.Time }
 
