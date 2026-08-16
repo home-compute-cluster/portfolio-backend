@@ -250,6 +250,7 @@ Added or completed:
 - deployed image `7e3512d`, completed the production migration Job, unsealed the visitor key, and reached a stable `1/1` backend pod with zero restarts
 - made the GHCR package anonymously pullable and applied Traefik forwarded-header trust for the `deus` ServiceLB pod CIDR
 - verified the public edge returns valid HTTP 200 responses for health, database readiness, post stats, and bounded comment listing
+- diagnosed the failed proxy-config rollout as a duplicate YAML key added beside the original blank `TRUSTED_PROXY_CIDRS` placeholder, not as a rejected CIDR
 
 External closeout still required:
 

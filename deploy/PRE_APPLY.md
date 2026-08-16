@@ -155,6 +155,28 @@ Before the API starts, replace the ConfigMap placeholders with:
 - the exact allowed administrator email
 - `TRUSTED_PROXY_CIDRS=10.42.0.0/16` for the Traefik-to-backend hop
 
+Replace the existing `TRUSTED_PROXY_CIDRS` placeholder; do not add a second
+mapping key. The final ConfigMap must contain exactly one occurrence:
+
+```yaml
+data:
+  TRUSTED_PROXY_CIDRS: "10.42.0.0/16"
+```
+
+A duplicate key prevents Kustomize from rendering the application. Because
+ConfigMap-backed environment variables are read only when a container starts,
+bump a Git-owned pod-template annotation in the same commit:
+
+```yaml
+spec:
+  template:
+    metadata:
+      annotations:
+        packetcraft.dev/config-revision: "trusted-proxy-v1"
+```
+
+Increment that revision whenever a ConfigMap change must restart the API.
+
 Create `site-admin.packetcraft.dev` on the same Tunnel and protect the entire
 hostname with one deny-by-default Access application. Allow only the intended
 administrator identity and require strong authentication. Never add a Bypass
