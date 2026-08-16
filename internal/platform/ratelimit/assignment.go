@@ -5,36 +5,37 @@ import (
 	"time"
 )
 
-// AssignmentLimiter is intentionally incomplete. Implement a pod-local,
-// concurrency-safe limiter here, then wire it in internal/app after the
-// assignment acceptance tests pass.
+// AssignmentLimiter applies a concurrency-safe fixed-window allowance per
+// pseudonymous visitor. Its bounded state is local to one application pod.
 type AssignmentLimiter struct {
 	limit   int
 	window  time.Duration
 	maxKeys int
-	// TODO: add bounded state and synchronization appropriate to your algorithm.
-	mu   sync.Mutex
-	user map[[32]byte]*VisitorState
+	mu      sync.Mutex
+	user    map[[32]byte]*visitorState
 }
 
-// VisitorState records the per visitor status
-type VisitorState struct {
+// visitorState records one visitor's current fixed window and request count.
+type visitorState struct {
 	windowStart time.Time
 	count       int
 }
 
+// NewAssignmentLimiter creates a limiter with the given per-window allowance
+// and visitor retention bound. Invalid values produce a limiter that fails
+// closed when Allow is called.
 func NewAssignmentLimiter(limit int, window time.Duration, maxKeys int) *AssignmentLimiter {
 	return &AssignmentLimiter{
 		limit:   limit,
 		window:  window,
 		maxKeys: maxKeys,
-		user:    make(map[[32]byte]*VisitorState),
+		user:    make(map[[32]byte]*visitorState),
 	}
 }
 
+// Allow reports whether the visitor has remaining allowance in its current
+// fixed window. A new visitor is denied when maxKeys active entries are held.
 func (limiter *AssignmentLimiter) Allow(visitor [32]byte, now time.Time) bool {
-	// TODO: implement this method. The temporary permissive result keeps the
-	// normal backend build usable, but this limiter is not wired into the API.
 	limiter.mu.Lock()
 	defer limiter.mu.Unlock()
 
@@ -45,7 +46,7 @@ func (limiter *AssignmentLimiter) Allow(visitor [32]byte, now time.Time) bool {
 	}
 
 	if limiter.user == nil {
-		limiter.user = make(map[[32]byte]*VisitorState)
+		limiter.user = make(map[[32]byte]*visitorState)
 	}
 
 	if state, exists := limiter.user[visitor]; exists {
@@ -63,25 +64,25 @@ func (limiter *AssignmentLimiter) Allow(visitor [32]byte, now time.Time) bool {
 		return true
 	}
 
-	// Only perform the sweep when a new visitor exceed the retention bound
+	// Sweep only when admitting a new visitor would exceed the retention bound.
 	if len(limiter.user) >= limiter.maxKeys {
-		limiter.removeExpiredLock(now)
+		limiter.removeExpiredLocked(now)
 
-		// DO NOT evict active entries
+		// Active entries are never evicted to make room for an unseen visitor.
 		if len(limiter.user) >= limiter.maxKeys {
 			return false
 		}
 	}
 
-	limiter.user[visitor] = &VisitorState{
+	limiter.user[visitor] = &visitorState{
 		windowStart: now,
 		count:       1,
 	}
-
 	return true
 }
 
-func (limiter *AssignmentLimiter) removeExpiredLock(now time.Time) {
+// removeExpiredLocked removes expired visitor windows. The caller must hold mu.
+func (limiter *AssignmentLimiter) removeExpiredLocked(now time.Time) {
 	for visitor, state := range limiter.user {
 		if now.Sub(state.windowStart) >= limiter.window {
 			delete(limiter.user, visitor)
@@ -89,9 +90,8 @@ func (limiter *AssignmentLimiter) removeExpiredLock(now time.Time) {
 	}
 }
 
-// Size exists so the assignment tests can verify bounded key retention.
+// Size returns the number of visitor keys currently retained.
 func (limiter *AssignmentLimiter) Size() int {
-	// TODO: return the number of visitor keys currently retained.
 	limiter.mu.Lock()
 	defer limiter.mu.Unlock()
 

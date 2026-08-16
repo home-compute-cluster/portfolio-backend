@@ -19,6 +19,7 @@ import (
 	httpmiddleware "github.com/home-compute-cluster/portfolio-backend/internal/httpapi/middleware"
 	"github.com/home-compute-cluster/portfolio-backend/internal/platform/clock"
 	"github.com/home-compute-cluster/portfolio-backend/internal/platform/postgres"
+	"github.com/home-compute-cluster/portfolio-backend/internal/platform/ratelimit"
 	"github.com/home-compute-cluster/portfolio-backend/internal/platform/visitor"
 	"github.com/home-compute-cluster/portfolio-backend/internal/reactions"
 	reactionspostgres "github.com/home-compute-cluster/portfolio-backend/internal/reactions/postgres"
@@ -52,7 +53,11 @@ func Run(ctx context.Context, cfg config.Config, logger *slog.Logger) error {
 	commentHandler := httpapi.NewCommentHandler(
 		commentService,
 		visitorIdentity,
-		nil, // Rate-limiting assignment: wire only after its tagged acceptance suite passes.
+		ratelimit.NewAssignmentLimiter(
+			cfg.Rates.CommentsPerMinute,
+			time.Minute,
+			cfg.Rates.MaxKeysPerLimiter,
+		),
 		cfg.Database.QueryTimeout,
 		logger,
 	)
@@ -65,7 +70,11 @@ func Run(ctx context.Context, cfg config.Config, logger *slog.Logger) error {
 	viewHandler := httpapi.NewViewHandler(
 		viewService,
 		visitorIdentity,
-		nil, // Rate-limiting assignment: use a separate view allowance when implemented.
+		ratelimit.NewAssignmentLimiter(
+			cfg.Rates.ReadsPerMinute,
+			time.Minute,
+			cfg.Rates.MaxKeysPerLimiter,
+		),
 		cfg.Database.QueryTimeout,
 		logger,
 	)
@@ -74,7 +83,11 @@ func Run(ctx context.Context, cfg config.Config, logger *slog.Logger) error {
 		reactions.NewLikeService(reactionStore, contentService),
 		reactions.NewStatsService(reactionStore, contentService),
 		visitorIdentity,
-		nil, // Rate-limiting assignment: wire the like allowance after implementation.
+		ratelimit.NewAssignmentLimiter(
+			cfg.Rates.LikesPerMinute,
+			time.Minute,
+			cfg.Rates.MaxKeysPerLimiter,
+		),
 		cfg.Database.QueryTimeout,
 		logger,
 	)

@@ -31,8 +31,56 @@ func TestLoadUsesDefaults(t *testing.T) {
 	if cfg.Views.DeduplicationWindow != 24*time.Hour {
 		t.Fatalf("view window = %s, want 24h", cfg.Views.DeduplicationWindow)
 	}
+	if cfg.Rates.CommentsPerMinute != 5 || cfg.Rates.LikesPerMinute != 30 || cfg.Rates.ReadsPerMinute != 60 || cfg.Rates.MaxKeysPerLimiter != 10000 {
+		t.Fatalf("rate limit defaults = %#v", cfg.Rates)
+	}
 	if cfg.Database.Password != "configured-password" {
 		t.Fatal("database password was not loaded from DB_PASSWORD")
+	}
+}
+
+func TestLoadParsesRateLimits(t *testing.T) {
+	clearEnvironment(t)
+	t.Setenv("DATABASE_URL", "postgres://portfolio@127.0.0.1:15432/portfolio?sslmode=require")
+	t.Setenv("RATE_COMMENTS_PER_MIN", "7")
+	t.Setenv("RATE_LIKES_PER_MIN", "11")
+	t.Setenv("RATE_READS_PER_MIN", "13")
+	t.Setenv("RATE_LIMIT_MAX_KEYS", "1234")
+
+	cfg, err := Load()
+	if err != nil {
+		t.Fatalf("Load() error = %v", err)
+	}
+	want := RateLimitConfig{
+		CommentsPerMinute: 7,
+		LikesPerMinute:    11,
+		ReadsPerMinute:    13,
+		MaxKeysPerLimiter: 1234,
+	}
+	if cfg.Rates != want {
+		t.Fatalf("rate limits = %#v, want %#v", cfg.Rates, want)
+	}
+}
+
+func TestLoadRejectsInvalidRateLimits(t *testing.T) {
+	for _, test := range []struct {
+		name  string
+		value string
+	}{
+		{"RATE_COMMENTS_PER_MIN", "0"},
+		{"RATE_LIKES_PER_MIN", "-1"},
+		{"RATE_READS_PER_MIN", "many"},
+		{"RATE_LIMIT_MAX_KEYS", "0"},
+	} {
+		t.Run(test.name, func(t *testing.T) {
+			clearEnvironment(t)
+			t.Setenv("DATABASE_URL", "postgres://portfolio@127.0.0.1:15432/portfolio?sslmode=require")
+			t.Setenv(test.name, test.value)
+
+			if _, err := Load(); err == nil || !strings.Contains(err.Error(), test.name) {
+				t.Fatalf("Load() error = %v, want %s validation error", err, test.name)
+			}
+		})
 	}
 }
 
@@ -189,6 +237,10 @@ func clearEnvironment(t *testing.T) {
 		"VISITOR_HMAC_KEY",
 		"TRUSTED_PROXY_CIDRS",
 		"VIEW_DEDUP_WINDOW_HOURS",
+		"RATE_COMMENTS_PER_MIN",
+		"RATE_LIKES_PER_MIN",
+		"RATE_READS_PER_MIN",
+		"RATE_LIMIT_MAX_KEYS",
 		"CF_ACCESS_TEAM_DOMAIN",
 		"CF_ACCESS_AUD",
 		"ADMIN_EMAIL",

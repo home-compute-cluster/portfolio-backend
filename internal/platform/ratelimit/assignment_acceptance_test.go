@@ -76,6 +76,49 @@ func TestAssignmentBoundsRetainedKeys(t *testing.T) {
 	}
 }
 
+func TestAssignmentSizeReportsRetainedVisitors(t *testing.T) {
+	limiter := NewAssignmentLimiter(1, time.Minute, 10)
+	now := time.Date(2026, time.August, 10, 12, 0, 0, 0, time.UTC)
+	for index := byte(1); index <= 3; index++ {
+		if !limiter.Allow(assignmentKey(index), now) {
+			t.Fatalf("visitor %d was unexpectedly denied", index)
+		}
+	}
+	if size := limiter.Size(); size != 3 {
+		t.Fatalf("retained keys = %d, want 3", size)
+	}
+}
+
+func TestAssignmentRemovesExpiredVisitorsAtCapacity(t *testing.T) {
+	limiter := NewAssignmentLimiter(1, time.Minute, 2)
+	now := time.Date(2026, time.August, 10, 12, 0, 0, 0, time.UTC)
+	if !limiter.Allow(assignmentKey(1), now) || !limiter.Allow(assignmentKey(2), now) {
+		t.Fatal("initial visitors were unexpectedly denied")
+	}
+	if limiter.Allow(assignmentKey(3), now) {
+		t.Fatal("new visitor was allowed while all retained windows were active")
+	}
+	if !limiter.Allow(assignmentKey(3), now.Add(time.Minute)) {
+		t.Fatal("new visitor was denied after retained windows expired")
+	}
+	if size := limiter.Size(); size != 1 {
+		t.Fatalf("retained keys after cleanup = %d, want 1", size)
+	}
+}
+
+func TestAssignmentInvalidConfigurationFailsClosed(t *testing.T) {
+	now := time.Date(2026, time.August, 10, 12, 0, 0, 0, time.UTC)
+	for _, limiter := range []*AssignmentLimiter{
+		NewAssignmentLimiter(0, time.Minute, 1),
+		NewAssignmentLimiter(1, 0, 1),
+		NewAssignmentLimiter(1, time.Minute, 0),
+	} {
+		if limiter.Allow(assignmentKey(1), now) {
+			t.Fatal("invalid limiter configuration allowed a request")
+		}
+	}
+}
+
 func assignmentKey(value byte) [32]byte {
 	var key [32]byte
 	key[0] = value
