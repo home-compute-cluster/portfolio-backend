@@ -147,12 +147,27 @@ hostname with one deny-by-default Access application. Allow only the intended
 administrator identity and require strong authentication. Never add a Bypass
 policy.
 
-Traefik must trust forwarded headers only from the actual cloudflared-to-Traefik
-source addresses. Add those addresses to
-`apps/traefik/helmchartconfig.yaml` under
-`ports.web.forwardedHeaders.trustedIPs`. Do not enable
-`forwardedHeaders.insecure`. The exact source addresses depend on where the
-cloudflared connector runs and must be confirmed before this change is made.
+The native `cloudflared` connector runs on the K3s node `deus` and sends its
+origin requests through the node-local K3s ServiceLB listener on port 80. The
+live ServiceLB rules masquerade that traffic before forwarding it to Traefik,
+so Traefik sees the ServiceLB pod as its direct peer rather than the node's
+`192.168.1.250` address. Trust the stable pod CIDR assigned to `deus`, not the
+current ephemeral ServiceLB pod IP:
+
+```yaml
+# apps/traefik/helmchartconfig.yaml, merged into the existing valuesContent
+ports:
+  web:
+    forwardedHeaders:
+      trustedIPs:
+        - "10.42.0.0/24"
+```
+
+Do not enable `forwardedHeaders.insecure`. The API separately trusts the full
+K3s pod network (`10.42.0.0/16`) so its right-to-left forwarded-chain walk can
+pass both the Traefik pod and the ServiceLB hop. Cloudflare public edge ranges
+do not belong in either list because the edge does not connect directly to
+Traefik.
 
 The initial public backend route remains:
 
