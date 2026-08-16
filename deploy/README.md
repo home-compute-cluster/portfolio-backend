@@ -6,7 +6,7 @@ The homelab GitOps repository owns live Kubernetes resources. This directory doc
 | --- | --- |
 | Deployment, Service, IngressRoute, ConfigMap, Sealed Secret, migration Job | homelab GitOps / ArgoCD |
 | PostgreSQL cluster, backups, and restore configuration | CloudNativePG configuration in homelab GitOps |
-| `admin.site.packetcraft.dev` Access application and identity policy | Cloudflare Access |
+| `site-admin.packetcraft.dev` Access application and identity policy | Cloudflare Access |
 | public API edge rate-limit rules | Cloudflare WAF |
 | API code, migrations, image, contract, and smoke command | this repository |
 
@@ -18,10 +18,13 @@ The first deployment uses the currently live `site.packetcraft.dev` origin.
 Moving the public site to `packetcraft.dev` is a separate DNS, Tunnel, frontend,
 and ingress cutover. See `PRE_APPLY.md` for the ordered handoff.
 
+The administrator uses the first-level `site-admin.packetcraft.dev` hostname so
+it is covered by the zone's Universal SSL certificate.
+
 The reference demonstrates that:
 
 - the public `site.packetcraft.dev/api/*` route reaches the backend while the frontend continues to own other public paths
-- the intended admin ingress is `admin.site.packetcraft.dev/api/admin/*`; Cloudflare must protect the entire admin hostname
+- the intended admin ingress is `site-admin.packetcraft.dev/api/admin/*`; Cloudflare must protect the entire admin hostname
 - Go still validates the Access assertion on every admin route, including if the public API route can reach `/api/admin/*`
 - startup and liveness use `/api/healthz`; readiness uses `/api/readyz`
 - probes stay outside the Access-protected admin hostname

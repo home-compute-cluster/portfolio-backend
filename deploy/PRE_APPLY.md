@@ -16,7 +16,7 @@ The following were confirmed against the live cluster on 2026-08-16:
 - the Traefik pod network is within `10.42.0.0/16`
 - the four published frontend post slugs match migration `000002`
 - `site.packetcraft.dev` resolves and serves the current frontend
-- `packetcraft.dev` and `admin.site.packetcraft.dev` do not yet resolve
+- `packetcraft.dev` and `site-admin.packetcraft.dev` do not yet resolve
 
 Recheck these facts if deployment happens after an infrastructure change.
 
@@ -131,7 +131,20 @@ Remove-Variable visitorKey
 ```
 
 Review only the encrypted SealedSecret output. Its template must create
-`portfolio-backend` in `portfolio` with the `VISITOR_HMAC_KEY` key.
+`portfolio-backend` in `portfolio` with the `VISITOR_HMAC_KEY` key. Add this
+annotation to the SealedSecret resource itself so Argo CD waits for it before
+running the migration hook or creating the Deployment:
+
+```yaml
+metadata:
+  annotations:
+    argocd.argoproj.io/sync-wave: "-2"
+```
+
+The annotation belongs on the SealedSecret's top-level `metadata`, not only on
+`spec.template.metadata`. Without the wave, a first rollout can briefly create
+an application pod before the Sealed Secrets controller has materialized the
+referenced Kubernetes Secret.
 
 ## 4. Finish Cloudflare and proxy trust
 
@@ -142,17 +155,32 @@ Before the API starts, replace the ConfigMap placeholders with:
 - the exact allowed administrator email
 - `TRUSTED_PROXY_CIDRS=10.42.0.0/16` for the Traefik-to-backend hop
 
-Create `admin.site.packetcraft.dev` on the same Tunnel and protect the entire
+Create `site-admin.packetcraft.dev` on the same Tunnel and protect the entire
 hostname with one deny-by-default Access application. Allow only the intended
 administrator identity and require strong authentication. Never add a Bypass
 policy.
 
-Traefik must trust forwarded headers only from the actual cloudflared-to-Traefik
-source addresses. Add those addresses to
-`apps/traefik/helmchartconfig.yaml` under
-`ports.web.forwardedHeaders.trustedIPs`. Do not enable
-`forwardedHeaders.insecure`. The exact source addresses depend on where the
-cloudflared connector runs and must be confirmed before this change is made.
+The native `cloudflared` connector runs on the K3s node `deus` and sends its
+origin requests through the node-local K3s ServiceLB listener on port 80. The
+live ServiceLB rules masquerade that traffic before forwarding it to Traefik,
+so Traefik sees the ServiceLB pod as its direct peer rather than the node's
+`192.168.1.250` address. Trust the stable pod CIDR assigned to `deus`, not the
+current ephemeral ServiceLB pod IP:
+
+```yaml
+# apps/traefik/helmchartconfig.yaml, merged into the existing valuesContent
+ports:
+  web:
+    forwardedHeaders:
+      trustedIPs:
+        - "10.42.0.0/24"
+```
+
+Do not enable `forwardedHeaders.insecure`. The API separately trusts the full
+K3s pod network (`10.42.0.0/16`) so its right-to-left forwarded-chain walk can
+pass both the Traefik pod and the ServiceLB hop. Cloudflare public edge ranges
+do not belong in either list because the edge does not connect directly to
+Traefik.
 
 The initial public backend route remains:
 
