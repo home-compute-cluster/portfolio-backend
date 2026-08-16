@@ -4,7 +4,7 @@ The homelab GitOps repository owns live Kubernetes resources. This directory doc
 
 | Concern | Owner |
 | --- | --- |
-| Deployment, Service, IngressRoute, ConfigMap, Sealed Secret, migration Job | homelab GitOps / ArgoCD |
+| Deployment, Service, IngressRoute, ConfigMaps, Sealed Secret, migration and content-sync Jobs | homelab GitOps / ArgoCD |
 | PostgreSQL cluster, backups, and restore configuration | CloudNativePG configuration in homelab GitOps |
 | `site-admin.packetcraft.dev` Access application and identity policy | Cloudflare Access |
 | public API edge rate-limit rules | Cloudflare WAF |
@@ -31,6 +31,7 @@ The reference demonstrates that:
 - `DATABASE_URL` uses the existing CNPG-generated `portfolio-db-app` Secret's `uri` key, which targets the read-write Service without duplicating a database credential
 - the container runs without root privileges or a writable root filesystem and has explicit resources
 - an Argo CD `Sync` hook runs `/migrate` after configuration exists and before the API rollout
+- a second `Sync` hook applies the frontend-generated full content snapshot after migrations and before the API rollout
 
 Configure the Access application deny-by-default, allow only the exact administrator identity, require strong authentication where the identity provider supports it, and never add a `Bypass` policy. Put its team domain and application audience in the ConfigMap; neither is a credential. Keep the administrator assertion, database URL, and visitor HMAC key out of Git and logs.
 
@@ -39,3 +40,7 @@ Cloudflare WAF should prioritize method/path limits for public comment, view, an
 After ArgoCD has applied a release, run the automated smoke command described in `scripts/README.md` from a trusted runner with origin access. It verifies the normal public workflow, Go’s missing/forged-assertion rejection, authenticated moderation, and optionally the unauthenticated Access edge boundary. It does not require routine manual endpoint testing.
 
 Do not put plaintext secrets in this directory.
+
+The content registry ConfigMap is generated from Astro data and contains no
+credential. Follow [`docs/content-registry.md`](../docs/content-registry.md) for
+its strict JSON contract and automated frontend-before-deployment ordering.

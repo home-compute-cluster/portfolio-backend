@@ -2,13 +2,12 @@
 
 The application owns versioned, forward-only PostgreSQL migrations in this directory.
 
-Content identities are synchronized by adding a forward-only migration whenever
-the Astro site publishes, archives, or renames a blog, project, review, or other
-content item. Authored bodies remain in the frontend repository; this registry
-only authorizes backend-owned dynamic state. Kind is constrained descriptive
-metadata, while the explicit registry row and its publication state form the
-authorization boundary. Editing an already-applied seed migration is
-intentionally rejected by the migration checksum guard.
+Migrations own the registry schema, not its day-to-day contents. Migration
+`000008` introduces frontend-manifest ownership and comment policy. After that
+migration is deployed, the one-shot `/sync-content` command applies complete
+Astro snapshots; new readings no longer require SQL migrations. Earlier seed
+migrations remain immutable history and are intentionally protected by the
+migration checksum guard.
 
 ## Convention
 
@@ -32,6 +31,16 @@ The API never runs migrations. The separate entrypoint is:
 ```
 
 Local binaries can be built with `make build`. In deployment, GitOps runs one revision-specific migration Job before rolling out the API pods.
+
+Content synchronization is a separate ordered deployment operation:
+
+```text
+/sync-content -manifest /content/content-registry.json
+```
+
+The manifest format and frontend handoff are documented in
+[`docs/content-registry.md`](../docs/content-registry.md). The synchronizer
+archives omitted frontend-owned identities but never deletes interaction data.
 
 ## Automated verification
 
