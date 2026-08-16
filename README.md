@@ -1,6 +1,6 @@
 # portfolio-backend
 
-`portfolio-backend` is the Go API for [packetcraft.dev](https://packetcraft.dev). It is a small modular monolith that provides post reactions, visitor comments, and Access-protected moderation for the static Astro frontend. Authored content remains in Astro/Git rather than PostgreSQL.
+`portfolio-backend` is the Go API for [packetcraft.dev](https://packetcraft.dev). It is a small modular monolith that provides reactions, visitor comments, and Access-protected moderation for the static Astro frontend. Authored content remains in Astro/Git rather than PostgreSQL.
 
 The implemented walking skeleton and feature slices provide typed configuration, PostgreSQL pooling, structured logging, liveness/readiness probes, graceful HTTP shutdown, versioned migrations, a content registry, public comments, visitor privacy controls, real-PostgreSQL integration tests, CI, and a production-oriented container image.
 
@@ -53,7 +53,7 @@ DELETE /api/posts/{slug}/like
 GET  /api/posts/{slug}/stats
 ```
 
-Only slugs in the published content registry are accepted. Comments are plain text, newest-first, and cursor-paginated. Views use a rolling deduplication window. Likes use explicit idempotent desired-state operations, and stats expose only aggregate view and like totals. Comment listing, hiding, and unhiding are registered only as one Cloudflare Access-protected `/api/admin` route group; successful state changes write a minimal audit event in the same PostgreSQL transaction.
+The `/api/posts/{slug}` prefix is retained as the stable interaction API, but its slug may identify any explicitly registered, published content item. The registry currently includes blogs, projects, and reviews; its constrained kind field can represent future Astro collections without a schema change. Registering a new kind does not authorize arbitrary URLs because every content slug must still be added deliberately. Comments are plain text, newest-first, and cursor-paginated. Views use a rolling deduplication window. Likes use explicit idempotent desired-state operations, and stats expose only aggregate view and like totals. Comment listing, hiding, and unhiding are registered only as one Cloudflare Access-protected `/api/admin` route group; successful state changes write a minimal audit event in the same PostgreSQL transaction.
 
 Comment creation, view recording, and like-state changes use independent, per-visitor fixed-window limiters. Their allowances and per-limiter retention bound are configured by `RATE_COMMENTS_PER_MIN`, `RATE_READS_PER_MIN`, `RATE_LIKES_PER_MIN`, and `RATE_LIMIT_MAX_KEYS`. Limiter state is local to each pod, resets on restart, and is multiplied by the number of replicas; Cloudflare edge controls provide an additional abuse-control layer. Run `make test-rate-limit-assignment` for the focused race and behavior suite.
 

@@ -1,8 +1,8 @@
 openapi: 3.1.0
 info:
   title: Packetcraft Backend API
-  version: 0.1.0
-  description: Dynamic API for packetcraft.dev.
+  version: 0.2.0
+  description: Dynamic interactions for registered packetcraft.dev blogs, projects, reviews, and future content kinds. The existing `/posts/{slug}` paths are retained for compatibility.
 servers:
   - url: /api
 paths:
@@ -51,7 +51,7 @@ paths:
       - $ref: "#/components/parameters/PostSlug"
     get:
       operationId: listPostComments
-      summary: List visible comments newest first
+      summary: List visible content comments newest first
       parameters:
         - name: before_id
           in: query
@@ -81,7 +81,7 @@ paths:
           $ref: "#/components/responses/NotFound"
     post:
       operationId: createPostComment
-      summary: Publish a plain-text visitor comment
+      summary: Publish a plain-text visitor comment on registered content
       requestBody:
         required: true
         content:
@@ -102,7 +102,7 @@ paths:
         "404":
           $ref: "#/components/responses/NotFound"
         "409":
-          description: The post has reached its visible-comment limit.
+          description: The content item has reached its visible-comment limit.
           content:
             application/json:
               schema:
@@ -120,7 +120,7 @@ paths:
       - $ref: "#/components/parameters/PostSlug"
     post:
       operationId: recordPostView
-      summary: Record a deduplicated post view
+      summary: Record a deduplicated content view
       description: A visitor contributes at most one view per rolling configured window.
       responses:
         "204":
@@ -136,7 +136,7 @@ paths:
       - $ref: "#/components/parameters/PostSlug"
     put:
       operationId: likePost
-      summary: Ensure the current visitor likes the post
+      summary: Ensure the current visitor likes the content item
       responses:
         "204":
           description: The desired liked state is established.
@@ -148,7 +148,7 @@ paths:
           $ref: "#/components/responses/TooManyRequests"
     delete:
       operationId: unlikePost
-      summary: Ensure the current visitor does not like the post
+      summary: Ensure the current visitor does not like the content item
       responses:
         "204":
           description: The desired unliked state is established.
@@ -166,7 +166,7 @@ paths:
       summary: Get public view and like totals
       responses:
         "200":
-          description: Aggregate statistics for the published post.
+          description: Aggregate statistics for the registered, published content item.
           content:
             application/json:
               schema:
@@ -269,6 +269,7 @@ components:
       name: slug
       in: path
       required: true
+      description: A registered, published content slug. It may belong to a blog, project, review, or future content kind.
       schema:
         type: string
         maxLength: 100
@@ -397,6 +398,7 @@ components:
           format: int64
         post_slug:
           type: string
+          description: The registered content slug. The field name is retained for API compatibility.
         author_name:
           type: string
         body:

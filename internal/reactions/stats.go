@@ -24,9 +24,9 @@ func NewStatsService(store StatsStore, content ContentRegistry) *StatsService {
 	return &StatsService{store: store, content: content}
 }
 
-// Get returns aggregate statistics for a published post.
+// Get returns aggregate statistics for registered, published content.
 func (service *StatsService) Get(ctx context.Context, postSlug string) (Stats, error) {
-	if err := service.content.RequirePublishedPost(ctx, postSlug); err != nil {
+	if err := service.content.RequirePublishedContent(ctx, postSlug); err != nil {
 		return Stats{}, err
 	}
 	return service.store.GetStats(ctx, postSlug)

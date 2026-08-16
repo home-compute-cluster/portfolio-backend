@@ -250,6 +250,7 @@ Added or completed:
 - deployed image `7e3512d`, completed the production migration Job, unsealed the visitor key, and reached a stable `1/1` backend pod with zero restarts
 - made the GHCR package anonymously pullable and applied Traefik forwarded-header trust for the `deus` ServiceLB pod CIDR
 - verified the public edge returns valid HTTP 200 responses for health, database readiness, post stats, and bounded comment listing
+- diagnosed the failed proxy-config rollout as a duplicate YAML key added beside the original blank `TRUSTED_PROXY_CIDRS` placeholder, not as a rejected CIDR
 
 External closeout still required:
 
@@ -288,6 +289,29 @@ Remaining before V1 can be called complete:
 - apply and validate the GitOps, Cloudflare Access, Tunnel, and WAF configuration in their owning systems
 - let CI perform the Docker build and container scan because Docker is unavailable in the current local environment
 
+## Content interactions across Astro collections
+
+Status: repository implementation complete; production requires the normal migration-first rollout
+
+Added or completed:
+
+- added forward-only migration `000007_expand_content_registry.sql`
+- replaced the enumerated content-kind allowlist with a bounded lower-kebab identifier constraint, allowing future collection kinds without weakening the explicit slug registry boundary
+- registered all four current project slugs (`k3s-cluster`, `lan-drop`, `obsync`, and `relic-overlay`) and all three current review slugs (`cs2105`, `i7-9700k`, and `warframe`) as published content
+- changed the application/store boundary from post-specific existence checks to generic published-content checks
+- allowed comments, view recording, likes, unlikes, and stats for every explicitly registered, published content item regardless of kind
+- preserved the existing `/api/posts/{slug}` routes, error codes, database column names, and moderation response fields so the frontend requires no API-shape change
+- updated the OpenAPI and migration documentation to explain the compatibility route and generic content registry
+
+Automated verification completed:
+
+- `go test ./...`
+- `go test -count=1 -run '^TestIntegration' ./...` against real PostgreSQL
+- `go test -race ./...`
+- `go vet ./...`
+- `go run honnef.co/go/tools/cmd/staticcheck@v0.7.0 ./...`
+- `go build ./cmd/api ./cmd/migrate ./cmd/smoke`
+
 ## Next recommended work
 
-Merge the stacked iteration branches in order, apply the external deployment configuration, and run the automated deployment smoke command.
+Promote this revision through the normal GitOps workflow so migration `000007` completes before the new API pod rolls out. The existing frontend comment sections will then work for the newly registered project and review slugs without a frontend API change.

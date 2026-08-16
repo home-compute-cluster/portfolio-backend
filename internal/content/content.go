@@ -14,7 +14,7 @@ var (
 )
 
 type Store interface {
-	PublishedPostExists(ctx context.Context, slug string) (bool, error)
+	PublishedContentExists(ctx context.Context, slug string) (bool, error)
 }
 
 type Service struct {
@@ -25,12 +25,14 @@ func NewService(store Store) *Service {
 	return &Service{store: store}
 }
 
-func (service *Service) RequirePublishedPost(ctx context.Context, slug string) error {
+// RequirePublishedContent verifies that slug identifies a registered,
+// published content item that may use backend-owned dynamic features.
+func (service *Service) RequirePublishedContent(ctx context.Context, slug string) error {
 	if !ValidSlug(slug) {
 		return ErrInvalidSlug
 	}
 
-	exists, err := service.store.PublishedPostExists(ctx, slug)
+	exists, err := service.store.PublishedContentExists(ctx, slug)
 	if err != nil {
 		return err
 	}

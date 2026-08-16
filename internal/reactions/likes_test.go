@@ -59,6 +59,6 @@ func (store *recordingLikeStore) RemoveLike(context.Context, string, [32]byte) (
 
 type rejectingContent struct{ err error }
 
-func (content rejectingContent) RequirePublishedPost(context.Context, string) error {
+func (content rejectingContent) RequirePublishedContent(context.Context, string) error {
 	return content.err
 }
