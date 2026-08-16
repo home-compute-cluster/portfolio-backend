@@ -246,7 +246,7 @@ Added or completed:
 - added an ordered pre-apply runbook covering the GitOps layout, Sealed Secret creation, Access and proxy prerequisites, immutable image promotion, server-side dry runs, and the single Argo CD bootstrap command
 - identified the native `cloudflared` path on `deus`: K3s ServiceLB masquerades port-80 origin traffic, so Traefik must trust the stable `deus` pod CIDR (`10.42.0.0/24`) while the backend trusts the cluster pod network (`10.42.0.0/16`)
 - documented SealedSecret sync wave `-2` after the first live rollout exposed a race where the Deployment could start before the controller materialized `portfolio-backend`
-- changed the intended Access edge to the first-level `admin.packetcraft.dev` hostname after live TLS verification showed that Universal SSL does not cover nested `admin.site.packetcraft.dev`
+- changed the intended Access edge to the selected first-level `site-admin.packetcraft.dev` hostname after live TLS verification showed that Universal SSL does not cover the earlier nested hostname
 - deployed image `7e3512d`, completed the production migration Job, unsealed the visitor key, and reached a stable `1/1` backend pod with zero restarts
 - made the GHCR package anonymously pullable and applied Traefik forwarded-header trust for the `deus` ServiceLB pod CIDR
 - verified the public edge returns valid HTTP 200 responses for health, database readiness, post stats, and bounded comment listing
@@ -255,7 +255,7 @@ External closeout still required:
 
 - set `TRUSTED_PROXY_CIDRS` to the string `10.42.0.0/16`, trigger a Git-owned pod-template rollout, and return the Argo CD application to `Synced`
 - add SealedSecret sync wave `-2` in the homelab GitOps repository
-- move the Tunnel route, Access application, and live admin IngressRoute from the TLS-incompatible nested hostname to `admin.packetcraft.dev`
+- move the Tunnel route, Access application, and live admin IngressRoute to `site-admin.packetcraft.dev`
 - configure plan-appropriate Cloudflare WAF rate-limit and `/api/*` cache-bypass rules
 - run the complete authenticated deployment smoke workflow and retain its successful result as deployment evidence
 

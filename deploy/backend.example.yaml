@@ -211,7 +211,7 @@ spec:
     - web
   routes:
     - kind: Rule
-      match: Host(`admin.packetcraft.dev`) && PathPrefix(`/api/admin`)
+      match: Host(`site-admin.packetcraft.dev`) && PathPrefix(`/api/admin`)
       priority: 200
       services:
         - name: portfolio-backend
