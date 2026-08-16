@@ -91,3 +91,95 @@ jobs:
           ignore-unfixed: true
           vuln-type: os,library
           severity: HIGH,CRITICAL
+
+  release:
+    name: Publish and promote image
+    if: github.event_name == 'push' && github.ref == 'refs/heads/main'
+    needs:
+      - go
+      - container
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    permissions:
+      contents: read
+      packages: write
+    steps:
+      - name: Check out repository
+        uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
+
+      - name: Require GitOps promotion credential
+        env:
+          CONFIG_REPO_TOKEN: ${{ secrets.CONFIG_REPO_TOKEN }}
+        run: test -n "$CONFIG_REPO_TOKEN"
+
+      - name: Compute immutable image tag
+        id: release
+        shell: bash
+        run: |
+          echo "image=ghcr.io/${GITHUB_REPOSITORY,,}" >> "$GITHUB_OUTPUT"
+          echo "tag=${GITHUB_SHA::7}" >> "$GITHUB_OUTPUT"
+
+      - name: Set up Docker Buildx
+        uses: docker/setup-buildx-action@8d2750c68a42422c14e847fe6c8ac0403b4cbd6f # v3
+
+      - name: Log in to GHCR
+        uses: docker/login-action@c94ce9fb468520275223c153574b00df6fe4bcc9 # v3
+        with:
+          registry: ghcr.io
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Build and push release image
+        uses: docker/build-push-action@10e90e3645eae34f1e60eeb005ba3a3d33f178e8 # v6
+        with:
+          context: .
+          push: true
+          platforms: linux/amd64
+          tags: |
+            ${{ steps.release.outputs.image }}:${{ steps.release.outputs.tag }}
+            ${{ steps.release.outputs.image }}:latest
+          cache-from: type=gha
+          cache-to: type=gha,mode=max
+
+      - name: Check out GitOps repository
+        uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
+        with:
+          repository: BarneyLaw/homelab-cicd-config
+          token: ${{ secrets.CONFIG_REPO_TOKEN }}
+          ref: main
+          path: config
+
+      - name: Set up Go for pinned Kustomize
+        uses: actions/setup-go@924ae3a1cded613372ab5595356fb5720e22ba16 # v6
+        with:
+          go-version-file: go.mod
+          cache: false
+
+      - name: Install Kustomize
+        run: go install sigs.k8s.io/kustomize/kustomize/v5@v5.7.1
+
+      - name: Promote immutable image tag
+        working-directory: config/apps/portfolio/backend
+        env:
+          IMAGE: ${{ steps.release.outputs.image }}
+          TAG: ${{ steps.release.outputs.tag }}
+        run: |
+          KUSTOMIZE="$(go env GOPATH)/bin/kustomize"
+          "$KUSTOMIZE" edit set image "${IMAGE}=${IMAGE}:${TAG}"
+          "$KUSTOMIZE" build . >/dev/null
+
+      - name: Commit GitOps promotion
+        working-directory: config
+        env:
+          TAG: ${{ steps.release.outputs.tag }}
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "github-actions[bot]@users.noreply.github.com"
+          git add apps/portfolio/backend/kustomization.yaml
+          if git diff --cached --quiet; then
+            echo "GitOps image tag is already current"
+            exit 0
+          fi
+          git commit -m "deploy: portfolio backend ${TAG}"
+          git pull --rebase origin main
+          git push origin HEAD:main
